@@ -111,7 +111,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
       <div class="group-title">Rendering</div>
       <label><span>Wireframe</span><input type="checkbox" id="sWire"></label>
       <label><span>Backface Cull</span><input type="checkbox" id="sCull"></label>
-      <label><span>Flip Map</span><input type="checkbox" id="sFlip" title="Mirror map (fixes hallways on wrong side)"></label>
+      <label><span>Flip Map</span><input type="checkbox" id="sFlip" title="Leave unchecked for correct orientation. Check to see unflipped/wrong view."></label>
       <label><span>Cull Radius</span><input type="range" id="sCullR" min="0" max="20000" value="0" step="100"><span class="val" id="vCullR">Off</span></label>
     </div>
     <div class="group">
@@ -1537,7 +1537,8 @@ function frame(now){
   const mv=makeModelview();
   const pj=makeProjection(fov,aspect,near,far);
   let mvp=mat4Mul(pj,mv);
-  if(getB("sFlip")){
+  // Flip is applied by default (correct map). Uncheck "Flip Map" to see unflipped/wrong orientation.
+  if(!getB("sFlip")){
     const flip= new Float32Array([-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
     mvp=mat4Mul(mvp,flip);
   }
