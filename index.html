@@ -46,7 +46,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
 .loading.hidden{display:none}
 #bspInfoModal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:400;display:none;align-items:center;justify-content:center;padding:20px}
 #bspInfoModal.visible{display:flex}
-#bspInfoModal .box{background:#1e1e22;border:1px solid #444;border-radius:12px;max-width:520px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+#bspInfoModal .box{background:#1e1e22;border:1px solid #444;border-radius:12px;max-width:600px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.5)}
 #bspInfoModal .box-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #333;background:rgba(40,40,45,.9)}
 #bspInfoModal .box-header h3{font-size:16px;font-weight:600;color:#ddd}
 #bspInfoModal .box-close{background:none;border:none;color:#888;font-size:22px;cursor:pointer;padding:0 4px;line-height:1}
@@ -59,12 +59,23 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
 #bspInfoModal .box-body td{padding:4px 8px;color:#ccc}
 #bspInfoModal .box-body tr:nth-child(even){background:rgba(255,255,255,.03)}
 #bspInfoModal .box-body .mono{font-family:monospace;font-size:11px}
+#colorsModal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:400;display:none;align-items:center;justify-content:center;padding:20px}
+#colorsModal.visible{display:flex}
+#colorsModal .box{background:#1e1e22;border:1px solid #444;border-radius:12px;max-width:380px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+#colorsModal .box-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #333;background:rgba(40,40,45,.9)}
+#colorsModal .box-header h3{font-size:16px;font-weight:600;color:#ddd}
+#colorsModal .box-close{background:none;border:none;color:#888;font-size:22px;cursor:pointer;padding:0 4px;line-height:1}
+#colorsModal .box-close:hover{color:#fff}
+#colorsModal .box-body{overflow-y:auto;padding:16px 18px;font-size:12px}
+#colorsModal .color-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+#colorsModal .color-row span{color:#bbb;flex:1;margin-right:12px}
+#colorsModal .color-row input[type=color]{width:40px;height:24px;border:1px solid #444;border-radius:4px;cursor:pointer;padding:0}
 </style>
 </head>
 <body>
 <div id="dropzone">
   <div class="inner">
-    <h1>D3DBSP Viewer by EpikIzCool <span style="font-size:0.6em;color:#888;font-weight:400">v1</span></h1>
+    <h1>D3DBSP Viewer by EpikIzCool <span style="font-size:0.6em;color:#888;font-weight:400">v2</span></h1>
     <p>Drop a .d3dbsp file here or click to browse</p>
     <button class="btn" onclick="document.getElementById('fileInput').click()">Open File</button>
     <input type="file" id="fileInput" accept=".d3dbsp,.bsp">
@@ -103,13 +114,17 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
     </div>
     <div class="group">
       <div class="group-title">Lighting</div>
-      <label><span>Ambient</span><input type="range" id="sAmbient" min="0" max="1" value="0.3" step="0.01"><span class="val" id="vAmbient">0.30</span></label>
+      <label><span>Map Lighting</span><input type="checkbox" id="sMapLighting" title="Use baked vertex colors from cod2radiosity/lightmap"></label>
+      <label><span>Lighting only</span><input type="checkbox" id="sLightingOnly" checked title="Show pure baked lighting (no material colors). Uncheck for material tint."></label>
+      <label><span>Map Exposure</span><input type="range" id="sMapExposure" min="0.3" max="2" value="1" step="0.05"><span class="val" id="vMapExposure">1.00</span></label>
+      <label><span>Ambient</span><input type="range" id="sAmbient" min="0" max="1" value="0.08" step="0.01"><span class="val" id="vAmbient">0.08</span></label>
       <label><span>Sun Yaw</span><input type="range" id="sSunYaw" min="0" max="360" value="210" step="1"><span class="val" id="vSunYaw">210</span></label>
       <label><span>Sun Pitch</span><input type="range" id="sSunPitch" min="-90" max="90" value="45" step="1"><span class="val" id="vSunPitch">45</span></label>
+      <label><span>Sun boost</span><input type="range" id="sSunBoost" min="0" max="0.5" value="0" step="0.05"><span class="val" id="vSunBoost">0</span></label>
     </div>
     <div class="group">
       <div class="group-title">Rendering</div>
-      <label><span>Wireframe</span><input type="checkbox" id="sWire"></label>
+      <label><span>Wireframe</span><input type="checkbox" id="sWire" title="Show BSP geometry as wireframe (replaces filled mesh)"></label>
       <label><span>Backface Cull</span><input type="checkbox" id="sCull"></label>
       <label><span>Flip Map</span><input type="checkbox" id="sFlip" title="Leave unchecked for correct orientation. Check to see unflipped/wrong view."></label>
       <label><span>Cull Radius</span><input type="range" id="sCullR" min="0" max="20000" value="0" step="100"><span class="val" id="vCullR">Off</span></label>
@@ -128,25 +143,65 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
       <div class="group-title">Pathnodes</div>
       <label><span>Show pathnodes</span><input type="checkbox" id="sPathnodes" title="Draw pathnode positions and connections"></label>
       <div id="pathnodePanel" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #333">
-        <label><span>Draw connections <span style="color:#f80;font-size:10px">(partially broken)</span></span><input type="checkbox" id="sPathConn" checked title="Lines between linked nodes. Warning: path lump node order may not match entity order, causing incorrect connections."></label>
+        <label><span>Draw connections</span><input type="checkbox" id="sPathConn" checked title="Lines between linked nodes. Read-only from LUMP_PATHCONNECTIONS — no inference. If nodeCount≠entity count, connections may be wrong."></label>
         <label><span>Draw node markers</span><input type="checkbox" id="sPathMarkers" checked title="Cross at each node"></label>
         <label><span>Node size</span><input type="range" id="sPathSize" min="4" max="80" value="24" step="2"><span class="val" id="vPathSize">24</span></label>
-        <label><span>Max connection dist</span><input type="number" id="sPathMaxDist" min="0" value="500" step="50" title="Hide connections longer than this (0=unlimited). Filters spurious long lines when index mapping is off."></label>
-        <div id="pathStats" style="margin-top:6px;font-size:11px;color:#888;line-height:1.4">--</div>
+        <label><span>Max connection dist</span><input type="number" id="sPathMaxDist" min="0" value="0" step="50" title="0=show ALL connections. &gt;0 hides lines longer than this. Connections read ONLY from lump."></label>
+        <div id="pathStats" style="margin-top:6px;font-size:11px;color:#888;line-height:1.4;white-space:pre-line">--</div>
       </div>
     </div>
     <div class="group">
-      <div class="group-title">Collision Debug</div>
-      <label><span>Debug Mode</span><input type="checkbox" id="sCollDebug" title="Show collision debug options"></label>
+      <div class="group-title">Debug</div>
+      <label><span>Debug Mode</span><input type="checkbox" id="sCollDebug" title="Show debug options: triggers, collision, portals, target lines"></label>
       <div id="collDebugPanel" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #333">
-        <label><span>Draw collision mesh</span><input type="checkbox" id="sDrawCollMesh" title="Wireframe overlay of collision triangles"></label>
-        <label><span>Draw AABB tree</span><input type="checkbox" id="sDrawAabb" title="Wireframe AABB boxes"></label>
-        <label><span>Force tris fallback</span><input type="checkbox" id="sForceTris" title="Use brute-force tris instead of AABB tree"></label>
-        <div id="collStats" style="margin-top:6px;font-size:11px;color:#888;line-height:1.4">--</div>
+        <div class="group-title" style="margin-top:4px;font-size:10px;color:#777">AABB / Collision</div>
+        <label><span>Collision mesh</span><input type="checkbox" id="sDrawCollMesh" title="Wireframe overlay of collision triangles"></label>
+        <label><span>AABB tree</span><input type="checkbox" id="sDrawAabb" title="Wireframe AABB boxes"></label>
+        <label><span>AABB source</span><select id="sAabbSource" title="Collision: physics AABB tree. Gfx AabbTrees: render culling tree from CullGroups."></select></label>
+        <div class="group-title" style="margin-top:8px;font-size:10px;color:#777">Cells</div>
+        <label><span>Master Cells</span><input type="checkbox" id="sShowMasterCells" title="Wireframe boxes for BSP master/portal cells (visibility zones)"></label>
+        <label><span>Outdoor Cells</span><input type="checkbox" id="sShowOutdoorCells" title="Wireframe boxes for outdoor bounds (T5/T6)"></label>
+        <label><span>Show portals</span><input type="checkbox" id="sShowPortals" title="Wireframe polygons for visibility portals between cells"></label>
+        <div class="group-title" style="margin-top:8px;font-size:10px;color:#777">Entity Links</div>
+        <label><span>Target lines</span><input type="checkbox" id="sShowTargetLines" title="Lines from entity target to targetname (script/entity links)"></label>
+        <label><span>Map triggers</span><input type="checkbox" id="sShowTriggers" title="Wireframe of trigger brushes (material 'trigger' or entity classname contains 'trigger' + model). Non-brush triggers (trigger_radius etc.) show as sphere. Uncheck 'Depth test lines' to see triggers through geometry. Hover for KVP."></label>
+        <div class="group-title" style="margin-top:8px;font-size:10px;color:#777">Materials (wireframe)</div>
+        <label><span>Material options (experimental)</span><input type="checkbox" id="sShowMaterialOptions" title="Show material wireframes (clip, trigger, etc). May not work for all BSP formats."></label>
+        <div id="materialOptionsContainer" style="display:none;margin-left:8px;border-left:2px solid #444;padding-left:6px">
+        <label><span>Clip</span><input type="checkbox" id="sShowClip" title="Clip materials from Triangles, Unlayered, and brush geometry"></label>
+        <label><span>Nodraw / Skip</span><input type="checkbox" id="sShowNodraw" title="Nodraw, skip brushes"></label>
+        <label><span>Nosight</span><input type="checkbox" id="sShowNosight" title="Nosight, clip_nosight"></label>
+        <label><span>Light portal</span><input type="checkbox" id="sShowLightportal" title="Light portal, hdrportal"></label>
+        <label><span>Lightgrid volume</span><input type="checkbox" id="sShowLightgrid" title="wc/lightgrid_volume (T5 and other games)"></label>
+        <label><span>Lightgrid sky</span><input type="checkbox" id="sShowLightgridSky" title="lightgrid_sky material"></label>
+        <label><span>Trigger</span><input type="checkbox" id="sShowTriggerMat" title="Trigger material brushes"></label>
+        <label><span>Shadowcaulk</span><input type="checkbox" id="sShowShadowcaulk" title="Shadowcaulk brushes"></label>
+        <label><span>Mantle</span><input type="checkbox" id="sShowMantle" title="Mantle/climb brushes"></label>
+        <label><span>Mine</span><input type="checkbox" id="sShowMine" title="Mine brushes"></label>
+        <label><span>Traverse</span><input type="checkbox" id="sShowTraverse" title="Traverse, tool_transparent"></label>
+        <label><span>Undertow</span><input type="checkbox" id="sShowUndertow" title="Undertow brushes"></label>
+        <label><span>Portal</span><input type="checkbox" id="sShowPortal" title="Portal brushes"></label>
+        <label><span>Kill</span><input type="checkbox" id="sShowKill" title="Kill brushes"></label>
+        <label><span>Goal volume</span><input type="checkbox" id="sShowGoal" title="Goal volume brushes"></label>
+        <label><span>Hint</span><input type="checkbox" id="sShowHint" title="Hint brushes"></label>
+        <label><span>Fog</span><input type="checkbox" id="sShowFog" title="Fog brushes"></label>
+        <label><span>Aitrig</span><input type="checkbox" id="sShowAitrig" title="AI trigger brushes"></label>
+        <label><span>Spawner trigger</span><input type="checkbox" id="sShowSpawnerTrigger" title="wc/spawner_trigger brushes"></label>
+        <label><span>Exposure volume</span><input type="checkbox" id="sShowExposure" title="Exposure volume brushes"></label>
+        <label><span>Reflection volume</span><input type="checkbox" id="sShowReflection" title="Reflection volume brushes"></label>
+        <label><span>Volume</span><input type="checkbox" id="sShowVolume" title="Volume brushes (trigger volumes, fog, etc)"></label>
+        <label><span>Caulk</span><input type="checkbox" id="sShowCaulk" title="Caulk brushes"></label>
+        <label><span>Shadowcaster</span><input type="checkbox" id="sShowShadowcaster" title="Shadow caster brushes"></label>
+        </div>
+        <div class="group-title" style="margin-top:8px;font-size:10px;color:#777">Line Options</div>
+        <label><span>Depth test lines</span><input type="checkbox" id="sDepthTestLines" checked title="When on, debug lines are occluded by geometry. When off, lines draw on top (always visible)."></label>
+        <label><span>Force tris fallback</span><input type="checkbox" id="sForceTris" title="Use brute-force tris instead of AABB tree for collision"></label>
+        <div id="collStats" style="margin-top:8px;font-size:11px;color:#888;line-height:1.4">--</div>
       </div>
     </div>
     <div class="group">
       <button class="btn" id="btnBspInfo" style="width:100%;padding:8px;font-size:13px;display:none" title="Show all BSP lumps and game info">BSP Info</button>
+      <button class="btn" id="btnColors" style="width:100%;padding:8px;font-size:13px;margin-top:6px;display:none" title="Set colors for debug overlay options">Colors</button>
       <button class="btn" id="btnOpenBsp" style="width:100%;padding:8px;font-size:13px;margin-top:6px;display:none">Open Another BSP</button>
     </div>
   </div>
@@ -160,21 +215,38 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
     <div class="box-body" id="bspInfoBody"></div>
   </div>
 </div>
+<div id="colorsModal">
+  <div class="box">
+    <div class="box-header">
+      <h3>Debug Colors</h3>
+      <button class="box-close" id="colorsClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="box-body" id="colorsBody"></div>
+  </div>
+</div>
 <div id="entityTooltip"></div>
 <div id="help">WASD move &middot; Mouse look &middot; Shift fast &middot; Space jump (player) &middot; Scroll speed &middot; Click to capture &middot; Esc release &middot; Tab settings &middot; Open BSP in panel &middot; Hover entities for info</div>
 <script>
 "use strict";
 
-const LUMP_MATERIALS=0x00,LUMP_TRIANGLES=0x09,LUMP_DRAWVERTS=0x0A,LUMP_DRAWINDICES=0x0B,LUMP_COLLISIONVERTS=0x1F,LUMP_COLLISIONTRIS=0x20,LUMP_COLLISIONPARTITIONS=0x23,LUMP_COLLISIONAABBS=0x24,LUMP_MODELS=0x25,LUMP_ENTITIES=0x27,LUMP_PATHCONNECTIONS=0x28,LUMP_PRIMARY_LIGHTS=0x2B;
+const LUMP_MATERIALS=0x00,LUMP_PLANES=0x04,LUMP_BRUSHSIDES=0x05,LUMP_BRUSHES=0x08,LUMP_TRIANGLES=0x09,LUMP_DRAWVERTS=0x0A,LUMP_DRAWINDICES=0x0B,LUMP_CULLGROUPS=0x0C,LUMP_COLLISIONVERTS=0x1F,LUMP_COLLISIONTRIS=0x20,LUMP_COLLISIONPARTITIONS=0x23,LUMP_COLLISIONAABBS=0x24,LUMP_MODELS=0x25,LUMP_ENTITIES=0x27,LUMP_PATHCONNECTIONS=0x28,LUMP_PRIMARY_LIGHTS=0x2B,LUMP_UNLAYERED_CULLGROUPS=0x32,LUMP_UNLAYERED_TRIANGLES=0x2F,LUMP_UNLAYERED_DRAWVERTS=0x30,LUMP_UNLAYERED_DRAWINDICES=0x31,LUMP_BRUSHVERTS=0x17,LUMP_BRUSHVERTSCOUNTS=0x16,LUMP_BRUSHEDGES=0x07,LUMP_BRUSHSIDEEDGECOUNTS=0x06,LUMP_CELLS=0x19,LUMP_AABBTREES=0x18,LUMP_PORTALVERTS=0x13,LUMP_PORTALS=0x1A,LUMP_OUTDOORBOUNDS=0x4C;
 const LUMP_NAMES={
-  0x00:"Materials",0x01:"LightBytes",0x02:"LightGridEntries",0x03:"LightGridColors",0x04:"Planes",0x05:"BrushSides",0x06:"BrushSideEdgeCounts",0x07:"BrushEdges",0x08:"Brushes",0x09:"Triangles",0x0A:"DrawVerts",0x0B:"DrawIndices",0x0C:"CullGroups",0x0D:"CullGroupIndices",0x0E:"LightBytesUncompressed",0x13:"PortalVerts",0x15:"Uinds",0x16:"BrushVertsCounts",0x17:"BrushVerts",0x18:"AabbTrees",0x19:"Cells",0x1A:"Portals",0x1B:"Nodes",0x1C:"Leafs",0x1D:"LeafBrushes",0x1E:"LeafSurfaces",0x1F:"CollisionVerts",0x20:"CollisionTris",0x21:"CollisionEdgeWalkable",0x22:"CollisionBorders",0x23:"CollisionPartitions",0x24:"CollisionAabbs",0x25:"Models",0x26:"Visibility",0x27:"Entities",0x28:"PathConnections",0x29:"ReflectionProbes",0x2A:"VertexLayerData",0x2B:"PrimaryLights",0x2C:"LightGridHeader",0x2D:"LightGridRows",0x2F:"UnlayeredTriangles",0x30:"UnlayeredDrawVerts",0x31:"UnlayeredDrawIndices",0x32:"UnlayeredCullGroups",0x33:"UnlayeredAabbTrees",0x34:"LightRegions",0x35:"LightRegionHulls",0x36:"LightRegionAxes",0x3A:"SimpleLightmapBytes",0x3E:"LightRegions",0x3F:"LightRegionHulls",0x40:"LightRegionAxes",0x4D:"HeroOnlyLights",0x52:"StaticModelData"
+  0x00:"Materials",0x01:"LightBytes",0x02:"LightGridEntries",0x03:"LightGridColors",0x04:"Planes",0x05:"BrushSides",0x06:"BrushSideEdgeCounts",0x07:"BrushEdges",0x08:"Brushes",0x09:"Triangles",0x0A:"DrawVerts",0x0B:"DrawIndices",0x0C:"CullGroups",0x0D:"CullGroupIndices",0x0E:"LightBytesUncompressed",0x13:"PortalVerts",0x15:"Uinds",0x16:"BrushVertsCounts",0x17:"BrushVerts",0x18:"AabbTrees",0x19:"Cells",0x1A:"Portals",0x1B:"Nodes",0x1C:"Leafs",0x1D:"LeafBrushes",0x1E:"LeafSurfaces",0x1F:"CollisionVerts",0x20:"CollisionTris",0x21:"CollisionEdgeWalkable",0x22:"CollisionBorders",0x23:"CollisionPartitions",0x24:"CollisionAabbs",0x25:"Models",0x26:"Visibility",0x27:"Entities",0x28:"PathConnections",0x29:"ReflectionProbes",0x2A:"VertexLayerData",0x2B:"PrimaryLights",0x2C:"LightGridHeader",0x2D:"LightGridRows",0x2F:"UnlayeredTriangles",0x30:"UnlayeredDrawVerts",0x31:"UnlayeredDrawIndices",0x32:"UnlayeredCullGroups",0x33:"UnlayeredAabbTrees",
+  0x34:"WaterHeader",0x35:"WaterCells",0x36:"WaterCellData",0x37:"BurnableHeader",0x38:"BurnableCells",0x39:"BurnableCellData",0x3A:"SimpleLightmapBytes",0x3B:"LodChains",0x3C:"LodInfos",0x3D:"LodSurfaces",0x3E:"LightRegions",0x3F:"LightRegionHulls",0x40:"LightRegionAxes",0x46:"LightCoronas",0x47:"ShadowmapVolumes",0x48:"ShadowmapVolumePlanes",0x49:"ExposureVolumes",0x4A:"ExposureVolumePlanes",0x4B:"Occluders",0x4C:"OutdoorBounds",0x4D:"HeroOnlyLights",0x52:"StaticModelData"
 };
-function gameNameFromVersion(ver){
+function gameNameFromVersionAndChunks(ver,chunks){
   if(ver===4)return"COD2";if(ver===59)return"COD1";
-  if(ver<=22)return"IW3/IW4";if(ver<=31)return"WaW";if(ver<=45)return"IW5";if(ver<=62)return"T6/BO2";
+  if(ver<=22)return"IW3/IW4";if(ver<=31)return"WaW";
+  if(ver===45){
+    const types=new Set((chunks||[]).map(c=>c.type));
+    if(types.has(0x3A)||types.has(0x37)||types.has(0x4C)||types.has(0x34))return"T5/BO1";
+    return"IW5";
+  }
+  if(ver<=62)return"T6/BO2";
   return"Unknown";
 }
-const COLL_AABB_STRIDE=32,COLL_PART_STRIDE=20;
+function gameNameFromVersion(ver){return gameNameFromVersionAndChunks(ver,null);}
+const COLL_AABB_STRIDE=32,COLL_PART_STRIDE=20,CULL_GROUP_STRIDE=32,CELL_STRIDE=112;
 const VERT_STRIDE=68,NORMAL_OFF=12,COLOR_OFF=24,MAT_STRIDE=72;
 
 const MAT_KW=[
@@ -217,6 +289,45 @@ function matColor(name){
   }
   let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))|0;
   return HASH_PAL[((h%HASH_PAL.length)+HASH_PAL.length)%HASH_PAL.length];
+}
+
+// Debug overlay colors (hex). Defaults match original values.
+const DEBUG_COLOR_KEYS=["targetLines","triggers","portals","masterCells","collisionMesh","aabbTree","pathnodeMarkers","pathnodeConnections","wireframe"];
+const debugColors={targetLines:"#FF6633",triggers:"#33CCFF",portals:"#E69933",masterCells:"#33E659",collisionMesh:"#33E64D",aabbTree:"#33B3E6",pathnodeMarkers:"#FF801A",pathnodeConnections:"#FFE633",wireframe:"#4D80A6"};
+function rgbFromHex(hex){
+  const m=hex.match(/^#?([a-fA-F0-9]{6})$/);
+  if(!m)return[1,0.4,0.2];
+  return[parseInt(m[1].slice(0,2),16)/255,parseInt(m[1].slice(2,4),16)/255,parseInt(m[1].slice(4,6),16)/255];
+}
+function hexFromRgb(r,g,b){
+  return"#"+[Math.round(Math.min(255,r*255)),Math.round(Math.min(255,g*255)),Math.round(Math.min(255,b*255))].map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+function getDebugColor(key){
+  return rgbFromHex(debugColors[key]||"#FFFFFF");
+}
+
+// Parse worldspawn lighting from entities (T5/NX1: _color, sunlight, ambient, sun direction)
+// Light data used: DrawVerts color[4] (baked from LUMP_LIGHTBYTES/lightgrid), worldspawn tint/exposure, LUMP_PRIMARY_LIGHTS
+function parseWorldspawnLighting(ents){
+  const def={tint:[1,1,1],exposure:1,sunDir:null};
+  const ws=ents.find(e=>(e.classname||"").toLowerCase()==="worldspawn");
+  if(!ws||!ws.keyvalues)return def;
+  const kv=ws.keyvalues;
+  const colorStr=kv._color||kv.color||"";
+  if(colorStr){
+    const parts=colorStr.trim().split(/\s+/).map(parseFloat).filter(n=>!isNaN(n));
+    if(parts.length>=3)def.tint=[Math.min(1.2,parts[0]),Math.min(1.2,parts[1]),Math.min(1.2,parts[2])];
+  }
+  const sunDirStr=kv.sun||kv._sun||"";
+  if(sunDirStr){
+    const parts=sunDirStr.trim().split(/\s+/).map(parseFloat).filter(n=>!isNaN(n));
+    if(parts.length>=3){const x=parts[0],y=parts[1],z=parts[2];const len=Math.sqrt(x*x+y*y+z*z);if(len>1e-6)def.sunDir=[x/len,z/len,y/len];}
+  }
+  const sunStr=kv.sunlight||"";
+  if(sunStr){const v=parseFloat(sunStr);if(!isNaN(v)&&v>0)def.exposure=Math.min(2,Math.max(0.5,v));}
+  const ambStr=kv.ambient||"";
+  if(ambStr&&def.exposure===1){const v=parseFloat(ambStr);if(!isNaN(v)&&v>0)def.exposure=Math.min(1.5,0.5+v*0.5);}
+  return def;
 }
 
 // Parse entity string into array of {classname, origin, angles, model, keyvalues}
@@ -458,7 +569,8 @@ function parseD3DBSPLumpFormat(buf,ver){
   }
 
   const matRaw=getLump(0);
-  const matColors=[],matNames=[],matNoDraw=[];
+  const matColors=[],matNames=[],matNoDraw=[],matContentFlags=[];
+  const CONTENTS_TRIGGER_LUMP=0x40000000;
   if(matRaw&&matRaw.length>=72){
     const nm=Math.floor(matRaw.length/72);
     const dec=new TextDecoder("ascii");
@@ -467,9 +579,11 @@ function parseD3DBSPLumpFormat(buf,ver){
       let end=sl.subarray(0,64).indexOf(0);if(end<0)end=64;
       const name=dec.decode(sl.subarray(0,end));
       const flags0=sl.byteLength>=68?new DataView(sl.buffer,sl.byteOffset+64,4).getUint32(0,true):0;
+      const cf=sl.byteLength>=72?new DataView(sl.buffer,sl.byteOffset+68,4).getUint32(0,true):0;
       matNames.push(name);
       matColors.push(matColor(name));
       matNoDraw.push((flags0&0x80)!==0);
+      matContentFlags.push(cf);
     }
   }
 
@@ -491,12 +605,14 @@ function parseD3DBSPLumpFormat(buf,ver){
 
   let spawnPos=null,spawnYaw=0,spawnPitch=0;
   let ents=[];
+  let worldspawnLighting={tint:[1,1,1],exposure:1};
   const entRaw=getLump(LUMP_ENT);
   if(entRaw){
     const dec=new TextDecoder("ascii");
     let entStr=dec.decode(entRaw);
     if(entStr.charCodeAt(0)===0xEF&&entStr.charCodeAt(1)===0xBB&&entStr.charCodeAt(2)===0xBF)entStr=entStr.slice(3);
     ents=parseEntities(entStr);
+    worldspawnLighting=parseWorldspawnLighting(ents);
     const spawnClasses=["info_player_start","info_player_deathmatch","mp_global_intermission"];
     for(const e of ents){
       if(e.origin&&spawnClasses.includes(e.classname)){
@@ -527,14 +643,51 @@ function parseD3DBSPLumpFormat(buf,ver){
     if(ic>=3&&ic%3===0)totalTris+=ic/3;
   }
 
-  const vbo=new Float32Array(totalTris*3*9);
+  const vbo=new Float32Array(totalTris*3*12);
   let vi=0,triCount=0;
-  const collisionTris=[];
+  const collisionTris=[],triggerTris=[];
+  const materialTris={clip:[],nodraw:[],nosight:[],lightportal:[],lightgrid:[],lightgrid_sky:[],trigger:[],spawner_trigger:[],shadowcaulk:[],mantle:[],mine:[],traverse:[],undertow:[],portal:[],kill:[],goal:[],hint:[],fog:[],aitrig:[],exposure:[],reflection:[],volume:[],caulk:[],shadowcaster:[]};
+  function addMaterialTri(matName,tri){
+    const low=(matName||"").toLowerCase();
+    if(low.includes("clip"))materialTris.clip.push(tri);
+    if(low.includes("nodraw")||low.includes("skip")||low.includes("no draw")||low.includes("no_draw"))materialTris.nodraw.push(tri);
+    if(low.includes("nosight"))materialTris.nosight.push(tri);
+    if(low.includes("light_portal")||low.includes("lightportal")||low.includes("hdrportal"))materialTris.lightportal.push(tri);
+    if(low.includes("lightgrid_sky"))materialTris.lightgrid_sky.push(tri);
+    else if(low.includes("lightgrid_volume")||low.includes("lightgrid"))materialTris.lightgrid.push(tri);
+    if(low.includes("trigger"))materialTris.trigger.push(tri);
+    if(low.includes("spawner_trigger"))materialTris.spawner_trigger.push(tri);
+    if(low.includes("shadowcaulk"))materialTris.shadowcaulk.push(tri);
+    if(low.includes("mantle"))materialTris.mantle.push(tri);
+    if(low.includes("mine"))materialTris.mine.push(tri);
+    if(low.includes("traverse")||low.includes("tool_transparent"))materialTris.traverse.push(tri);
+    if(low.includes("undertow"))materialTris.undertow.push(tri);
+    if(low.includes("portal"))materialTris.portal.push(tri);
+    if(low.includes("kill"))materialTris.kill.push(tri);
+    if(low.includes("goal"))materialTris.goal.push(tri);
+    if(low.includes("hint"))materialTris.hint.push(tri);
+    if(low.includes("fog"))materialTris.fog.push(tri);
+    if(low.includes("aitrig"))materialTris.aitrig.push(tri);
+    if(low.includes("exposure"))materialTris.exposure.push(tri);
+    if(low.includes("reflection"))materialTris.reflection.push(tri);
+    if(low.includes("volume"))materialTris.volume.push(tri);
+    if(low.includes("caulk"))materialTris.caulk.push(tri);
+    if(low.includes("shadowcaster")||low.includes("shadow_caster"))materialTris.shadowcaster.push(tri);
+  }
+  const hasVertColor=VERT_STRIDE_LUMP>=28;
+  // COD1/COD2 lump format: no surfToModel mapping (TriangleSoup has no model index), so entity-based
+  // trigger detection is not supported. Triggers detected by material name or contentFlags only.
 
-  function emitTri(x0,y0,z0,x1,y1,z1,x2,y2,z2,nx,ny,nz,cr,cg,cb){
-    vbo[vi++]=x0;vbo[vi++]=y0;vbo[vi++]=z0;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=cr;vbo[vi++]=cg;vbo[vi++]=cb;
-    vbo[vi++]=x2;vbo[vi++]=y2;vbo[vi++]=z2;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=cr;vbo[vi++]=cg;vbo[vi++]=cb;
-    vbo[vi++]=x1;vbo[vi++]=y1;vbo[vi++]=z1;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=cr;vbo[vi++]=cg;vbo[vi++]=cb;
+  function readVertColorLump(vRaw,vertOff){
+    if(!hasVertColor||vertOff+4>vRaw.byteLength)return null;
+    const b=vRaw.getUint8(vertOff),g=vRaw.getUint8(vertOff+1),r=vRaw.getUint8(vertOff+2);
+    return[r/255,g/255,b/255];
+  }
+
+  function emitTri(x0,y0,z0,x1,y1,z1,x2,y2,z2,nx,ny,nz,mr,mg,mb,vr0,vg0,vb0,vr1,vg1,vb1,vr2,vg2,vb2){
+    vbo[vi++]=x0;vbo[vi++]=y0;vbo[vi++]=z0;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=mr;vbo[vi++]=mg;vbo[vi++]=mb;vbo[vi++]=vr0;vbo[vi++]=vg0;vbo[vi++]=vb0;
+    vbo[vi++]=x2;vbo[vi++]=y2;vbo[vi++]=z2;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=mr;vbo[vi++]=mg;vbo[vi++]=mb;vbo[vi++]=vr2;vbo[vi++]=vg2;vbo[vi++]=vb2;
+    vbo[vi++]=x1;vbo[vi++]=y1;vbo[vi++]=z1;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=mr;vbo[vi++]=mg;vbo[vi++]=mb;vbo[vi++]=vr1;vbo[vi++]=vg1;vbo[vi++]=vb1;
     triCount++;
   }
 
@@ -542,8 +695,9 @@ function parseD3DBSPLumpFormat(buf,ver){
     const off=s*TRI_SOUP_STRIDE;
     const matIdx=tRaw.getUint16(off,true);
     const matName=matIdx<matNames.length?matNames[matIdx]:"";
-    if(isSkipMaterial(matName))continue;
-    if(matIdx<matNoDraw.length&&matNoDraw[matIdx])continue;
+    const contentFlags=matIdx<matContentFlags.length?matContentFlags[matIdx]:0;
+    const isTriggerMat=(matName||"").toLowerCase().includes("trigger")||(contentFlags&CONTENTS_TRIGGER_LUMP)!==0;
+    const skipRender=!isTriggerMat&&(isSkipMaterial(matName)||(matIdx<matNoDraw.length&&matNoDraw[matIdx]));
     const fv=tRaw.getUint32(off+4,true);
     const vl=tRaw.getUint16(off+8,true);
     const ic=tRaw.getUint16(off+10,true);
@@ -565,10 +719,16 @@ function parseD3DBSPLumpFormat(buf,ver){
       const bx1=vRaw.getFloat32(b1,true),by1=vRaw.getFloat32(b1+4,true),bz1=vRaw.getFloat32(b1+8,true);
       const bx2=vRaw.getFloat32(b2,true),by2=vRaw.getFloat32(b2+4,true),bz2=vRaw.getFloat32(b2+8,true);
 
+      const vc0=readVertColorLump(vRaw,b0+24)||[cr,cg,cb];
+      const vc1=readVertColorLump(vRaw,b1+24)||[cr,cg,cb];
+      const vc2=readVertColorLump(vRaw,b2+24)||[cr,cg,cb];
+
       const x0=bx0,y0=bz0,z0=by0;
       const x1=bx1,y1=bz1,z1=by1;
       const x2=bx2,y2=bz2,z2=by2;
       if(!isCOD2)collisionTris.push([[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
+      if(isTriggerMat)triggerTris.push([[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
+      addMaterialTri(matName,[[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
 
       const e1x=x2-x0,e1y=y2-y0,e1z=z2-z0;
       const e2x=x1-x0,e2y=y1-y0,e2z=z1-z0;
@@ -576,16 +736,18 @@ function parseD3DBSPLumpFormat(buf,ver){
       const ln=Math.sqrt(nx*nx+ny*ny+nz*nz);
       if(ln>1e-8){nx/=ln;ny/=ln;nz/=ln;}else{nx=0;ny=1;nz=0;}
 
-      if(isCOD2){
-        emitTri(x0,y0,z0,x2,y2,z2,x1,y1,z1,nx,ny,nz,cr,cg,cb);
-      }else{
-        emitTri(x0,y0,z0,x1,y1,z1,x2,y2,z2,nx,ny,nz,cr,cg,cb);
+      if(!skipRender){
+        if(isCOD2){
+          emitTri(x0,y0,z0,x2,y2,z2,x1,y1,z1,nx,ny,nz,cr,cg,cb,vc0[0],vc0[1],vc0[2],vc1[0],vc1[1],vc1[2],vc2[0],vc2[1],vc2[2]);
+        }else{
+          emitTri(x0,y0,z0,x1,y1,z1,x2,y2,z2,nx,ny,nz,cr,cg,cb,vc0[0],vc0[1],vc0[2],vc1[0],vc1[1],vc1[2],vc2[0],vc2[1],vc2[2]);
+        }
       }
     }
   }
 
   let mnx=1e9,mny=1e9,mnz=1e9,mxx=-1e9,mxy=-1e9,mxz=-1e9;
-  for(let i=0;i<vi;i+=9){
+  for(let i=0;i<vi;i+=12){
     const px=vbo[i],py=vbo[i+1],pz=vbo[i+2];
     if(px<mnx)mnx=px;if(py<mny)mny=py;if(pz<mnz)mnz=pz;
     if(px>mxx)mxx=px;if(py>mxy)mxy=py;if(pz>mxz)mxz=pz;
@@ -593,7 +755,46 @@ function parseD3DBSPLumpFormat(buf,ver){
   const center=[(mnx+mxx)/2,(mny+mxy)/2,(mnz+mxz)/2];
   const startPos=spawnPos||[center[0],center[1]+100,center[2]];
 
-  return{vbo:vbo.subarray(0,vi),triCount,collisionMap:null,collisionTris,pathData:null,previewEnts,primaryLights:[],bounds:{min:[mnx,mny,mnz],max:[mxx,mxy,mxz]},startPos,startYaw:spawnYaw,startPitch:spawnPitch,ver,nSurfs,nVerts,nIdx,matCount:matColors.length,chunks:lumps.map((l,i)=>({type:i,len:l.len})),ident:0x50534249};
+  // COD1/COD2: try to find path lump (index unknown; scan lump format)
+  let pathData=null;
+  function isPathnodeEntityLump(cn){
+    const c=(cn||"").toLowerCase();
+    return c.startsWith("node_")||c==="info_pathnode"||c==="path_node";
+  }
+  const pathNodeEnts=ents.filter(e=>isPathnodeEntityLump(e.classname));
+  for(let li=0;li<lumps.length;li++){
+    const lump=getLumpDV(li);
+    if(!lump||lump.byteLength<6)continue;
+    const v=lump.getUint32(0,true);
+    const nodeCount=lump.getUint16(4,true);
+    if((v!==4&&v!==8)||nodeCount===0||nodeCount>10000)continue;
+    let pos=6;
+    const nodes=[];
+    const byteLen=lump.byteLength;
+    let ok=true;
+    for(let n=0;n<nodeCount&&ok;n++){
+      if(pos+2>byteLen){ok=false;break;}
+      const linkCount=lump.getUint16(pos,true);
+      pos+=2;
+      const links=[];
+      for(let l=0;l<linkCount;l++){
+        if(pos+6>byteLen){ok=false;break;}
+        links.push({nodeNum:lump.getUint16(pos,true),fDist:lump.getFloat32(pos+2,true)});
+        pos+=6;
+      }
+      const origin=pathNodeEnts[n]&&pathNodeEnts[n].origin?pathNodeEnts[n].origin:null;
+      nodes.push({origin,links});
+    }
+    if(ok&&nodes.length===nodeCount){pathData={nodes,nodeCount,entityCount:pathNodeEnts.length,pathNodeEnts};break;}
+  }
+  if(!pathData&&pathNodeEnts.length>0){
+    pathData={nodes:pathNodeEnts.map(e=>({origin:e.origin||null,links:[]})),nodeCount:pathNodeEnts.length,entityCount:pathNodeEnts.length,pathNodeEnts};
+  }
+
+  const chunksForLight=lumps.map((l,i)=>({type:i,len:l.len}));
+  const hasLightBytes=chunksForLight.some(c=>c.type===1);
+  const hasLightGrid=chunksForLight.some(c=>[2,3].includes(c.type));
+  return{vbo:vbo.subarray(0,vi),triCount,collisionMap:null,collisionTris,triggerTris,triggerEntityPositions:[],materialTris,pathData,previewEnts,primaryLights:[],bounds:{min:[mnx,mny,mnz],max:[mxx,mxy,mxz]},startPos,startYaw:spawnYaw,startPitch:spawnPitch,ver,nSurfs,nVerts,nIdx,matCount:matColors.length,chunks:chunksForLight,ident:0x50534249,worldspawnLighting,hasLightBytes,hasLightGrid};
 }
 
 function parseD3DBSP(buf){
@@ -630,17 +831,22 @@ function parseD3DBSP(buf){
     for(const k of SKIP_MAT)if(low.includes(k))return true;
     return false;
   }
+  const CONTENTS_TRIGGER=0x40000000;
+  // T5/T6 (ver 45+): contentFlags use 0x01 SOLID, 0x20 WATER etc - no CONTENTS_TRIGGER per T5_D3DBSP_FORMAT.md
+  const useContentFlagsTrigger=ver<45;
   const matRaw=getLump(LUMP_MATERIALS);
-  const matColors=[],matNames=[];
-  if(matRaw){
+  const matColors=[],matNames=[],matContentFlags=[];
+  if(matRaw&&matRaw.length>=MAT_STRIDE){
     const nm=Math.floor(matRaw.length/MAT_STRIDE);
     const dec=new TextDecoder("ascii");
     for(let m=0;m<nm;m++){
-      const sl=matRaw.subarray(m*MAT_STRIDE,m*MAT_STRIDE+64);
-      let end=sl.indexOf(0);if(end<0)end=64;
+      const sl=matRaw.subarray(m*MAT_STRIDE,m*MAT_STRIDE+MAT_STRIDE);
+      let end=sl.subarray(0,64).indexOf(0);if(end<0)end=64;
       const name=dec.decode(sl.subarray(0,end));
       matNames.push(name);
       matColors.push(matColor(name));
+      const cf=matRaw.byteLength>=m*MAT_STRIDE+72?new DataView(matRaw.buffer,matRaw.byteOffset+m*MAT_STRIDE+68,4).getUint32(0,true):0;
+      matContentFlags.push(cf);
     }
   }
 
@@ -678,6 +884,7 @@ function parseD3DBSP(buf){
 
   // Parse entities for spawn + script_brushmodel transforms
   let spawnPos=null,spawnYaw=0,spawnPitch=0;
+  let worldspawnLighting={tint:[1,1,1],exposure:1};
   const modelEntities=[]; // modelEntities[modelIdx] = [{origin,angles}, ...]
   let ents=[];
   const entRaw=getLump(LUMP_ENTITIES);
@@ -686,6 +893,7 @@ function parseD3DBSP(buf){
     let entStr=dec.decode(entRaw);
     if(entStr.charCodeAt(0)===0xEF&&entStr.charCodeAt(1)===0xBB&&entStr.charCodeAt(2)===0xBF)entStr=entStr.slice(3);
     ents=parseEntities(entStr);
+    worldspawnLighting=parseWorldspawnLighting(ents);
     const spawnClasses=["info_player_start","info_player_deathmatch","mp_global_intermission"];
     for(const e of ents){
       if(e.origin&&spawnClasses.includes(e.classname)){
@@ -702,21 +910,37 @@ function parseD3DBSP(buf){
       const modelIdx=parseInt(modelMatch[1],10);
       if(modelIdx<=0)continue;
       if(!modelEntities[modelIdx])modelEntities[modelIdx]=[];
-      modelEntities[modelIdx].push({origin:e.origin,angles:e.angles});
+      modelEntities[modelIdx].push({origin:e.origin,angles:e.angles,entity:e});
     }
   }
+  const triggerModelIndices=new Set();
+  for(const e of ents){
+    const cn=(e.classname||"").toLowerCase();
+    if(!cn.includes("trigger")||!e.model)continue;
+    const modelMatch=e.model.match(/^\*?(\d+)$/);
+    if(!modelMatch)continue;
+    const modelIdx=parseInt(modelMatch[1],10);
+    if(modelIdx>0)triggerModelIndices.add(modelIdx);
+  }
 
-  // Pathnodes: positions from node_pathnode entities, links from LUMP_PATHCONNECTIONS
-  // IMPORTANT: Include ALL node_pathnode entities (with or without origin) to preserve index alignment
-  // with the path lump. Path lump node n = n-th node_pathnode entity in parse order.
+  // Pathnodes: positions from pathnode entities, links from LUMP_PATHCONNECTIONS
+  // READ-ONLY: We only read connection data from the lump. No inference or generation.
+  // Include ALL pathnode entities to preserve index alignment: lump node n = n-th entity in parse order.
+  // T5/T6: pathData includes node_pathnode, node_cover_*, node_concealment_*, node_turret, node_guard, etc.
+  // IW3/IW4/IW5: node_pathnode. Older: info_pathnode, path_node.
+  function isPathnodeEntity(cn){
+    const c=(cn||"").toLowerCase();
+    return c.startsWith("node_")||c==="info_pathnode"||c==="path_node";
+  }
   let pathData=null;
   const pathConnRaw=getLump(LUMP_PATHCONNECTIONS);
-  const pathNodeEnts=ents.filter(e=>(e.classname||"").toLowerCase()==="node_pathnode");
+  const pathNodeEnts=ents.filter(e=>isPathnodeEntity(e.classname));
   if(pathConnRaw&&pathConnRaw.byteLength>=6){
     const dv=new DataView(pathConnRaw.buffer,pathConnRaw.byteOffset,pathConnRaw.byteLength);
     const ver=dv.getUint32(0,true);
     const nodeCount=dv.getUint16(4,true);
     let pos=6;
+    let linkDataEnd=6;
     const nodes=[];
     const byteLen=pathConnRaw.byteLength;
     for(let n=0;n<nodeCount&&pos+2<=byteLen;n++){
@@ -727,12 +951,13 @@ function parseD3DBSP(buf){
         links.push({nodeNum:dv.getUint16(pos,true),fDist:dv.getFloat32(pos+2,true)});
         pos+=6;
       }
+      linkDataEnd=pos;
       const origin=pathNodeEnts[n]&&pathNodeEnts[n].origin?pathNodeEnts[n].origin:null;
       nodes.push({origin,links});
     }
-    pathData={nodes,nodeCount};
+    pathData={nodes,nodeCount,linkDataEnd,entityCount:pathNodeEnts.length,pathNodeEnts};
   }else if(pathNodeEnts.length>0){
-    pathData={nodes:pathNodeEnts.map(e=>({origin:e.origin||null,links:[]})),nodeCount:pathNodeEnts.length};
+    pathData={nodes:pathNodeEnts.map(e=>({origin:e.origin||null,links:[]})),nodeCount:pathNodeEnts.length,entityCount:pathNodeEnts.length,pathNodeEnts};
   }
 
   // Classify entities for preview; parse primary lights
@@ -740,6 +965,7 @@ function parseD3DBSP(buf){
     let type="other";
     if(e.classname&&e.classname.startsWith("actor_"))type="actor";
     else if(e.classname==="light")type="light";
+    else if((e.classname||"").toLowerCase().includes("trigger"))type="trigger";
     else if(e.classname==="script_struct")type=e.origin?"script_origin":"script_struct";
     else if(e.origin)type="other";
     return {...e,previewType:type};
@@ -751,8 +977,30 @@ function parseD3DBSP(buf){
     const dv=new DataView(lightsRaw.buffer,lightsRaw.byteOffset,lightsRaw.byteLength);
     for(let i=0;i<nLights;i++){
       const off=i*PRIMARY_LIGHT_STRIDE;
-      const x=dv.getFloat32(off,true),y=dv.getFloat32(off+4,true),z=dv.getFloat32(off+8,true);
-      primaryLights.push({origin:[x,z,y],color:[1,1,1],radius:0});
+      let origin,color=[1,1,1],radius=100,type=0,dir=[0,0,-1];
+      if(PRIMARY_LIGHT_STRIDE>=268){
+        origin=[dv.getFloat32(off+20,true),dv.getFloat32(off+28,true),dv.getFloat32(off+24,true)];
+        color=[dv.getFloat32(off+32,true),dv.getFloat32(off+36,true),dv.getFloat32(off+40,true)];
+        radius=Math.max(50,dv.getFloat32(off+100,true));
+        type=dv.getInt8(off,0);
+        dir=[dv.getFloat32(off+8,true),dv.getFloat32(off+16,true),dv.getFloat32(off+12,true)];
+        if(Math.abs(dir[0])<1e-6&&Math.abs(dir[1])<1e-6&&Math.abs(dir[2])<1e-6)dir=[0,1,0];
+      }else if(PRIMARY_LIGHT_STRIDE>=128){
+        origin=[dv.getFloat32(off+28,true),dv.getFloat32(off+36,true),dv.getFloat32(off+32,true)];
+        color=[dv.getFloat32(off+4,true),dv.getFloat32(off+8,true),dv.getFloat32(off+12,true)];
+        radius=Math.max(50,dv.getFloat32(off+40,true));
+        type=dv.getInt8(off,0);
+        dir=[dv.getFloat32(off+16,true),dv.getFloat32(off+24,true),dv.getFloat32(off+20,true)];
+        if(Math.abs(dir[0])<1e-6&&Math.abs(dir[1])<1e-6&&Math.abs(dir[2])<1e-6)dir=[0,1,0];
+      }else{
+        const x=dv.getFloat32(off,true),y=dv.getFloat32(off+4,true),z=dv.getFloat32(off+8,true);
+        origin=[x,z,y];
+      }
+      let cosHalfFov=1;
+      if(PRIMARY_LIGHT_STRIDE>=268)cosHalfFov=dv.getFloat32(off+112,true);
+      else if(PRIMARY_LIGHT_STRIDE>=128)cosHalfFov=dv.getFloat32(off+44,true);
+      const halfFovDeg=cosHalfFov<1?Math.acos(Math.max(-1,Math.min(1,cosHalfFov)))*180/Math.PI:45;
+      primaryLights.push({origin,color,radius,type,dir,halfFovDeg});
     }
   }
 
@@ -817,8 +1065,9 @@ function parseD3DBSP(buf){
     }
     let rootAabbIndices=[0];
     if(modelsRaw&&modelsRaw.byteLength>=MODEL_STRIDE){
-      const firstColl=modelsRaw.getInt32(28,true);
-      const collCount=modelsRaw.getInt32(32,true);
+      const COLL_OFF=ver<=31?32:28,COLL_COUNT_OFF=ver<=31?36:32;
+      const firstColl=modelsRaw.getInt32(COLL_OFF,true);
+      const collCount=modelsRaw.getInt32(COLL_COUNT_OFF,true);
       if(collCount>0){rootAabbIndices=[];for(let i=0;i<collCount;i++)rootAabbIndices.push(firstColl+i);}
     }
     collisionMap={verts,tris,partitions,aabbs,rootAabbIndices};
@@ -845,23 +1094,197 @@ function parseD3DBSP(buf){
     collisionMap.collisionTrisFromMap=collisionTrisFromMap;
   }
 
-  // Build interleaved VBO (no collisionTris when using collision map)
-  const vbo=new Float32Array(totalTris*3*9);
+  // Parse Gfx CullGroups (lump 0x0C or 0x32 UnlayeredCullGroups) for Gfx AABB tree visualization
+  let gfxCullGroups=null;
+  function parseCullGroups(raw){
+    if(!raw||raw.byteLength<CULL_GROUP_STRIDE)return [];
+    const n=Math.floor(raw.byteLength/CULL_GROUP_STRIDE);
+    const out=[];
+    for(let i=0;i<n;i++){
+      const off=i*CULL_GROUP_STRIDE;
+      const mx=raw.getFloat32(off,true),my=raw.getFloat32(off+4,true),mz=raw.getFloat32(off+8,true);
+      const Mx=raw.getFloat32(off+12,true),My=raw.getFloat32(off+16,true),Mz=raw.getFloat32(off+20,true);
+      out.push({
+        origin:[(mx+Mx)/2,(mz+Mz)/2,(my+My)/2],
+        halfSize:[(Mx-mx)/2,(Mz-mz)/2,(My-my)/2]
+      });
+    }
+    return out;
+  }
+  const cg0=parseCullGroups(getLumpDV(LUMP_CULLGROUPS));
+  const cg32=parseCullGroups(getLumpDV(LUMP_UNLAYERED_CULLGROUPS));
+  gfxCullGroups=cg0.length>=cg32.length?cg0:cg32;
+  if(gfxCullGroups.length===0)gfxCullGroups=null;
+
+  // Parse AabbTrees (lump 0x18) - disk has no bounds; compute from surfaces (BO2/T6 when CullGroups empty)
+  let gfxAabbTrees=null;
+  const aabbTreeRaw=getLumpDV(LUMP_AABBTREES);
+  if(aabbTreeRaw&&aabbTreeRaw.byteLength>=12&&vRaw&&tRaw&&iRaw){
+    const AABB_TREE_STRIDE=12;
+    const nTrees=Math.floor(aabbTreeRaw.byteLength/AABB_TREE_STRIDE);
+    function getSurfaceBounds(firstSurf,surfCount){
+      let mnx=1e9,mny=1e9,mnz=1e9,mxx=-1e9,mxy=-1e9,mxz=-1e9;
+      for(let si=0;si<surfCount&&firstSurf+si<nSurfs;si++){
+        const s=firstSurf+si;
+        const off=s*TRI_STRIDE;
+        const fv=tRaw.getUint32(off+TRI_FV,true);
+        const vc=tRaw.getUint16(off+TRI_FV+4,true);
+        const ic=tRaw.getUint16(off+TRI_IC,true);
+        const fi=tRaw.getInt32(off+TRI_FI,true);
+        if(ic<3||fi<0||fi+ic>nIdx)continue;
+        for(let k=0;k<ic;k++){
+          const r=iRaw.getUint16((fi+k)*2,true);
+          if(r>=vc)continue;
+          const i0=fv+r;
+          if(i0>=nVerts)continue;
+          const b=i0*VERT_STRIDE;
+          const bx=vRaw.getFloat32(b,true),by=vRaw.getFloat32(b+4,true),bz=vRaw.getFloat32(b+8,true);
+          const x=bx,y=bz,z=by;
+          if(x<mnx)mnx=x;if(y<mny)mny=y;if(z<mnz)mnz=z;
+          if(x>mxx)mxx=x;if(y>mxy)mxy=y;if(z>mxz)mxz=z;
+        }
+      }
+      if(mnx<=mxx&&mny<=mxy&&mnz<=mxz)return{origin:[(mnx+mxx)/2,(mny+mxy)/2,(mnz+mxz)/2],halfSize:[(mxx-mnx)/2,(mxy-mny)/2,(mxz-mnz)/2]};
+      return null;
+    }
+    function walkTree(idx,out){
+      if(idx>=nTrees)return idx;
+      const off=idx*AABB_TREE_STRIDE;
+      const firstSurf=aabbTreeRaw.getUint32(off,true);
+      const surfCount=aabbTreeRaw.getUint32(off+4,true);
+      const childCount=aabbTreeRaw.getUint32(off+8,true);
+      const box=getSurfaceBounds(firstSurf,surfCount);
+      if(box)out.push(box);
+      let nextIdx=idx+1;
+      for(let c=0;c<childCount;c++)nextIdx=walkTree(nextIdx,out);
+      return nextIdx;
+    }
+    const out=[];
+    let idx=0;
+    while(idx<nTrees)idx=walkTree(idx,out);
+    if(out.length>0)gfxAabbTrees=out;
+  }
+
+  // Parse Cells (lump 0x19) for master cell visualization
+  let masterCells=null;
+  const cellsRaw=getLumpDV(LUMP_CELLS);
+  if(cellsRaw&&cellsRaw.byteLength>=CELL_STRIDE){
+    const nCells=Math.floor(cellsRaw.byteLength/CELL_STRIDE);
+    masterCells=[];
+    for(let i=0;i<nCells;i++){
+      const off=i*CELL_STRIDE;
+      const mx=cellsRaw.getFloat32(off,true),my=cellsRaw.getFloat32(off+4,true),mz=cellsRaw.getFloat32(off+8,true);
+      const Mx=cellsRaw.getFloat32(off+12,true),My=cellsRaw.getFloat32(off+16,true),Mz=cellsRaw.getFloat32(off+20,true);
+      masterCells.push({
+        origin:[(mx+Mx)/2,(mz+Mz)/2,(my+My)/2],
+        halfSize:[(Mx-mx)/2,(Mz-mz)/2,(My-my)/2]
+      });
+    }
+  }
+
+  // Parse Portals (lump 0x1A) and PortalVerts (lump 0x13) for visibility portal visualization
+  let portals=null;
+  const portalVertsRaw=getLumpDV(LUMP_PORTALVERTS);
+  const portalsRaw=getLumpDV(LUMP_PORTALS);
+  if(portalVertsRaw&&portalsRaw&&portalVertsRaw.byteLength>=12&&portalsRaw.byteLength>=16){
+    const PORTAL_STRIDE=16;
+    const nPortals=Math.floor(portalsRaw.byteLength/PORTAL_STRIDE);
+    const nPortalVerts=Math.floor(portalVertsRaw.byteLength/12);
+    const portalVerts=[];
+    for(let v=0;v<nPortalVerts;v++){
+      const bx=portalVertsRaw.getFloat32(v*12,true),by=portalVertsRaw.getFloat32(v*12+4,true),bz=portalVertsRaw.getFloat32(v*12+8,true);
+      portalVerts.push([bx,bz,by]);
+    }
+    portals=[];
+    for(let p=0;p<nPortals;p++){
+      const off=p*PORTAL_STRIDE;
+      const firstVert=portalsRaw.getInt32(off+8,true);
+      const vertCount=portalsRaw.getInt32(off+12,true);
+      if(vertCount<3||firstVert<0||firstVert+vertCount>nPortalVerts)continue;
+      const verts=[];
+      for(let v=0;v<vertCount;v++)verts.push(portalVerts[firstVert+v]);
+      portals.push({vertices:verts});
+    }
+    if(portals.length===0)portals=null;
+  }
+
+  // Parse Outdoor Bounds (lump 0x4C) for outdoor cell visualization (T5/T6)
+  let outdoorCells=null;
+  const outdoorRaw=getLumpDV(LUMP_OUTDOORBOUNDS);
+  if(outdoorRaw&&outdoorRaw.byteLength>=24){
+    const OUTDOOR_STRIDE=24;
+    const nOut=Math.floor(outdoorRaw.byteLength/OUTDOOR_STRIDE);
+    outdoorCells=[];
+    for(let i=0;i<nOut;i++){
+      const off=i*OUTDOOR_STRIDE;
+      const mx=outdoorRaw.getFloat32(off,true),my=outdoorRaw.getFloat32(off+4,true),mz=outdoorRaw.getFloat32(off+8,true);
+      const Mx=outdoorRaw.getFloat32(off+12,true),My=outdoorRaw.getFloat32(off+16,true),Mz=outdoorRaw.getFloat32(off+20,true);
+      outdoorCells.push({
+        origin:[(mx+Mx)/2,(mz+Mz)/2,(my+My)/2],
+        halfSize:[(Mx-mx)/2,(Mz-mz)/2,(My-my)/2]
+      });
+    }
+  }
+
+  // Build interleaved VBO: pos(3), norm(3), matCol(3), vertCol(3) per vertex
+  // vertCol from DrawVerts color[4] BGRA at offset 24 - baked lightmap/lightgrid
+  const vbo=new Float32Array(totalTris*3*12);
   let vi=0,triCount=0;
   const collisionTris=collisionMap?null:[];
+  const triggerTris=[];
+  const triggerEntityPositions=[]; // {entity,pos} for brush triggers (centroid of tris)
+  const materialTris={clip:[],nodraw:[],nosight:[],lightportal:[],lightgrid:[],lightgrid_sky:[],trigger:[],spawner_trigger:[],shadowcaulk:[],mantle:[],mine:[],traverse:[],undertow:[],portal:[],kill:[],goal:[],hint:[],fog:[],aitrig:[],exposure:[],reflection:[],volume:[],caulk:[],shadowcaster:[]};
+  function addMaterialTri(matName,tri){
+    const low=(matName||"").toLowerCase();
+    if(low.includes("clip"))materialTris.clip.push(tri);
+    if(low.includes("nodraw")||low.includes("skip")||low.includes("no draw")||low.includes("no_draw"))materialTris.nodraw.push(tri);
+    if(low.includes("nosight"))materialTris.nosight.push(tri);
+    if(low.includes("light_portal")||low.includes("lightportal")||low.includes("hdrportal"))materialTris.lightportal.push(tri);
+    if(low.includes("lightgrid_sky"))materialTris.lightgrid_sky.push(tri);
+    else if(low.includes("lightgrid_volume")||low.includes("lightgrid"))materialTris.lightgrid.push(tri);
+    if(low.includes("trigger"))materialTris.trigger.push(tri);
+    if(low.includes("spawner_trigger"))materialTris.spawner_trigger.push(tri);
+    if(low.includes("shadowcaulk"))materialTris.shadowcaulk.push(tri);
+    if(low.includes("mantle"))materialTris.mantle.push(tri);
+    if(low.includes("mine"))materialTris.mine.push(tri);
+    if(low.includes("traverse")||low.includes("tool_transparent"))materialTris.traverse.push(tri);
+    if(low.includes("undertow"))materialTris.undertow.push(tri);
+    if(low.includes("portal"))materialTris.portal.push(tri);
+    if(low.includes("kill"))materialTris.kill.push(tri);
+    if(low.includes("goal"))materialTris.goal.push(tri);
+    if(low.includes("hint"))materialTris.hint.push(tri);
+    if(low.includes("fog"))materialTris.fog.push(tri);
+    if(low.includes("aitrig"))materialTris.aitrig.push(tri);
+    if(low.includes("exposure"))materialTris.exposure.push(tri);
+    if(low.includes("reflection"))materialTris.reflection.push(tri);
+    if(low.includes("volume"))materialTris.volume.push(tri);
+    if(low.includes("caulk"))materialTris.caulk.push(tri);
+    if(low.includes("shadowcaster")||low.includes("shadow_caster"))materialTris.shadowcaster.push(tri);
+  }
 
-  function emitTri(x0,y0,z0,x1,y1,z1,x2,y2,z2,nx,ny,nz,cr,cg,cb){
-    vbo[vi++]=x0;vbo[vi++]=y0;vbo[vi++]=z0;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=cr;vbo[vi++]=cg;vbo[vi++]=cb;
-    vbo[vi++]=x2;vbo[vi++]=y2;vbo[vi++]=z2;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=cr;vbo[vi++]=cg;vbo[vi++]=cb;
-    vbo[vi++]=x1;vbo[vi++]=y1;vbo[vi++]=z1;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=cr;vbo[vi++]=cg;vbo[vi++]=cb;
+  function readVertColor(vRaw,vertOff){
+    if(vertOff+4>vRaw.byteLength)return null;
+    const b=vRaw.getUint8(vertOff),g=vRaw.getUint8(vertOff+1),r=vRaw.getUint8(vertOff+2);
+    return[r/255,g/255,b/255];
+  }
+
+  function emitTri(x0,y0,z0,x1,y1,z1,x2,y2,z2,nx,ny,nz,mr,mg,mb,vr0,vg0,vb0,vr1,vg1,vb1,vr2,vg2,vb2){
+    vbo[vi++]=x0;vbo[vi++]=y0;vbo[vi++]=z0;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=mr;vbo[vi++]=mg;vbo[vi++]=mb;vbo[vi++]=vr0;vbo[vi++]=vg0;vbo[vi++]=vb0;
+    vbo[vi++]=x2;vbo[vi++]=y2;vbo[vi++]=z2;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=mr;vbo[vi++]=mg;vbo[vi++]=mb;vbo[vi++]=vr2;vbo[vi++]=vg2;vbo[vi++]=vb2;
+    vbo[vi++]=x1;vbo[vi++]=y1;vbo[vi++]=z1;vbo[vi++]=nx;vbo[vi++]=ny;vbo[vi++]=nz;vbo[vi++]=mr;vbo[vi++]=mg;vbo[vi++]=mb;vbo[vi++]=vr1;vbo[vi++]=vg1;vbo[vi++]=vb1;
     triCount++;
   }
 
   for(let s=0;s<nSurfs;s++){
     const off=s*TRI_STRIDE;
     const matIdx=tRaw.getUint16(off,true);
+    const modelIdx=surfToModel[s];
     const matName=matIdx<matNames.length?matNames[matIdx]:"";
     const skipRender=isSkipMaterial(matName);
+    const contentFlags=matIdx<matContentFlags.length?matContentFlags[matIdx]:0;
+    const isTriggerModel=triggerModelIndices.has(modelIdx);
+    const isTriggerMat=!isTriggerModel&&((matName||"").toLowerCase().includes("trigger")||(useContentFlagsTrigger&&(contentFlags&CONTENTS_TRIGGER)!==0));
+    const isTrigger=isTriggerModel||isTriggerMat;
     const fv=tRaw.getUint32(off+TRI_FV,true);
     const vc=tRaw.getUint16(off+TRI_FV+4,true);
     const ic=tRaw.getUint16(off+TRI_IC,true);
@@ -870,8 +1293,6 @@ function parseD3DBSP(buf){
 
     const mc=matIdx<matColors.length?matColors[matIdx]:HASH_PAL[matIdx%HASH_PAL.length];
     const cr=mc[0]/255,cg=mc[1]/255,cb=mc[2]/255;
-
-    const modelIdx=surfToModel[s];
     let instances=null;
     if(modelIdx===0)instances=null;
     else if(modelIdx>0&&modelEntities[modelIdx]&&modelEntities[modelIdx].length>0)instances=modelEntities[modelIdx];
@@ -889,6 +1310,9 @@ function parseD3DBSP(buf){
       const bx0=vRaw.getFloat32(b0,true),by0=vRaw.getFloat32(b0+4,true),bz0=vRaw.getFloat32(b0+8,true);
       const bx1=vRaw.getFloat32(b1,true),by1=vRaw.getFloat32(b1+4,true),bz1=vRaw.getFloat32(b1+8,true);
       const bx2=vRaw.getFloat32(b2,true),by2=vRaw.getFloat32(b2+4,true),bz2=vRaw.getFloat32(b2+8,true);
+      const vc0=readVertColor(vRaw,b0+COLOR_OFF)||[cr,cg,cb];
+      const vc1=readVertColor(vRaw,b1+COLOR_OFF)||[cr,cg,cb];
+      const vc2=readVertColor(vRaw,b2+COLOR_OFF)||[cr,cg,cb];
 
       if(instances){
         for(const inst of instances){
@@ -897,13 +1321,18 @@ function parseD3DBSP(buf){
           const [x1,y1,z1]=transformPointBSPToViewer(bx1,by1,bz1,inst.origin,rot);
           const [x2,y2,z2]=transformPointBSPToViewer(bx2,by2,bz2,inst.origin,rot);
           if(collisionTris)collisionTris.push([[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
+          if(isTrigger){
+            triggerTris.push([[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
+            if(inst.entity)triggerEntityPositions.push({entity:inst.entity,pos:[(x0+x1+x2)/3,(y0+y1+y2)/3,(z0+z1+z2)/3]});
+          }
+          addMaterialTri(matName,[[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
           if(!skipRender){
             const e1x=x2-x0,e1y=y2-y0,e1z=z2-z0;
             const e2x=x1-x0,e2y=y1-y0,e2z=z1-z0;
             let nx=e1y*e2z-e1z*e2y,ny=e1z*e2x-e1x*e2z,nz=e1x*e2y-e1y*e2x;
             const ln=Math.sqrt(nx*nx+ny*ny+nz*nz);
             if(ln>1e-8){nx/=ln;ny/=ln;nz/=ln;}else{nx=0;ny=1;nz=0;}
-            emitTri(x0,y0,z0,x1,y1,z1,x2,y2,z2,nx,ny,nz,cr,cg,cb);
+            emitTri(x0,y0,z0,x1,y1,z1,x2,y2,z2,nx,ny,nz,cr,cg,cb,vc0[0],vc0[1],vc0[2],vc1[0],vc1[1],vc1[2],vc2[0],vc2[1],vc2[2]);
           }
         }
       }else{
@@ -911,21 +1340,160 @@ function parseD3DBSP(buf){
         const x1=bx1,y1=bz1,z1=by1;
         const x2=bx2,y2=bz2,z2=by2;
         if(collisionTris)collisionTris.push([[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
+        if(isTrigger)triggerTris.push([[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
+        addMaterialTri(matName,[[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
         if(!skipRender){
           const e1x=x2-x0,e1y=y2-y0,e1z=z2-z0;
           const e2x=x1-x0,e2y=y1-y0,e2z=z1-z0;
           let nx=e1y*e2z-e1z*e2y,ny=e1z*e2x-e1x*e2z,nz=e1x*e2y-e1y*e2x;
           const ln=Math.sqrt(nx*nx+ny*ny+nz*nz);
           if(ln>1e-8){nx/=ln;ny/=ln;nz/=ln;}else{nx=0;ny=1;nz=0;}
-          emitTri(x0,y0,z0,x1,y1,z1,x2,y2,z2,nx,ny,nz,cr,cg,cb);
+          emitTri(x0,y0,z0,x1,y1,z1,x2,y2,z2,nx,ny,nz,cr,cg,cb,vc0[0],vc0[1],vc0[2],vc1[0],vc1[1],vc1[2],vc2[0],vc2[1],vc2[2]);
         }
       }
     }
   }
 
+  // Process UnlayeredTriangles (0x2F) for IW4+ - tool materials (clip, caulk, trigger) often live here
+  // IW3 uses 0x2F for PRIMARY_LIGHTS; skip UnlayeredTriangles for ver<=22
+  const tRawUnlayered=ver>22?getLumpDV(LUMP_UNLAYERED_TRIANGLES):null;
+  const vRawUnlayered=getLumpDV(LUMP_UNLAYERED_DRAWVERTS)||vRaw;
+  const iRawUnlayered=getLumpDV(LUMP_UNLAYERED_DRAWINDICES)||iRaw;
+  if(tRawUnlayered&&tRawUnlayered.byteLength>=TRI_STRIDE&&vRawUnlayered&&iRawUnlayered){
+    const nSurfsUnlayered=Math.floor(tRawUnlayered.byteLength/TRI_STRIDE);
+    const nVertsUnlayered=Math.floor(vRawUnlayered.byteLength/VERT_STRIDE);
+    const nIdxUnlayered=Math.floor(iRawUnlayered.byteLength/2);
+    for(let s=0;s<nSurfsUnlayered;s++){
+      const off=s*TRI_STRIDE;
+      const matIdx=tRawUnlayered.getUint16(off,true);
+      const matName=matIdx<matNames.length?matNames[matIdx]:"";
+      const fv=tRawUnlayered.getUint32(off+TRI_FV,true);
+      const vc=tRawUnlayered.getUint16(off+TRI_FV+4,true);
+      const ic=tRawUnlayered.getUint16(off+TRI_IC,true);
+      const fi=tRawUnlayered.getInt32(off+TRI_FI,true);
+      if(ic<3||ic%3!==0||fi<0||fi+ic>nIdxUnlayered||vc===0)continue;
+      for(let k=0;k<ic;k+=3){
+        const r0=iRawUnlayered.getUint16((fi+k)*2,true);
+        const r1=iRawUnlayered.getUint16((fi+k+1)*2,true);
+        const r2=iRawUnlayered.getUint16((fi+k+2)*2,true);
+        if(r0>=vc||r1>=vc||r2>=vc)continue;
+        const i0=fv+r0,i1=fv+r1,i2=fv+r2;
+        if(i0>=nVertsUnlayered||i1>=nVertsUnlayered||i2>=nVertsUnlayered)continue;
+        const b0=i0*VERT_STRIDE,b1=i1*VERT_STRIDE,b2=i2*VERT_STRIDE;
+        const bx0=vRawUnlayered.getFloat32(b0,true),by0=vRawUnlayered.getFloat32(b0+4,true),bz0=vRawUnlayered.getFloat32(b0+8,true);
+        const bx1=vRawUnlayered.getFloat32(b1,true),by1=vRawUnlayered.getFloat32(b1+4,true),bz1=vRawUnlayered.getFloat32(b1+8,true);
+        const bx2=vRawUnlayered.getFloat32(b2,true),by2=vRawUnlayered.getFloat32(b2+4,true),bz2=vRawUnlayered.getFloat32(b2+8,true);
+        const x0=bx0,y0=bz0,z0=by0;
+        const x1=bx1,y1=bz1,z1=by1;
+        const x2=bx2,y2=bz2,z2=by2;
+        addMaterialTri(matName,[[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
+      }
+    }
+  }
+
+  // Add trigger entity brushes to materialTris.trigger (trigger brushes often use wc/trigger material)
+  if(triggerTris&&triggerTris.length>0){
+    for(const tri of triggerTris)materialTris.trigger.push(tri);
+  }
+
+  // Extract brush geometry (BRUSHES + BRUSHSIDES) - tool materials (clip, trigger, caulk) for all IBSP games
+  // IW3 has no UnlayeredTriangles (0x2F=PRIMARY_LIGHTS); clips/triggers come from BRUSHES same as T5
+  const brushesRaw=getLumpDV(LUMP_BRUSHES);
+  const brushSidesRaw=getLumpDV(LUMP_BRUSHSIDES);
+  const nBrushesForMap=brushesRaw?Math.floor(brushesRaw.byteLength/4):0;
+  const brushToModel=new Int32Array(Math.max(nBrushesForMap,1));
+  brushToModel.fill(0);
+  if(modelsRaw&&modelsRaw.byteLength>=MODEL_STRIDE){
+    const nModels=Math.floor(modelsRaw.byteLength/MODEL_STRIDE);
+    const BRUSH_OFF=ver<=31?40:36,BRUSH_COUNT_OFF=ver<=31?44:40;
+    for(let m=1;m<nModels;m++){
+      const off=m*MODEL_STRIDE;
+      const firstBrush=modelsRaw.getInt32(off+BRUSH_OFF,true);
+      const numBrushes=modelsRaw.getInt32(off+BRUSH_COUNT_OFF,true);
+      if(firstBrush<0||numBrushes<=0)continue;
+      for(let k=0;k<numBrushes;k++){
+        const bi=firstBrush+k;
+        if(bi<brushToModel.length)brushToModel[bi]=m;
+      }
+    }
+  }
+  // Parse planes: brush sides may use planeNum (int) instead of bound (float) for axial sides (WaW)
+  const planesRaw=getLumpDV(LUMP_PLANES);
+  const planeDists=[];
+  if(planesRaw&&planesRaw.byteLength>=16){
+    const nPlanes=Math.floor(planesRaw.byteLength/16);
+    for(let p=0;p<nPlanes;p++)planeDists.push(planesRaw.getFloat32(p*16+12,true));
+  }
+  function getBrushSideBound(sideOff){
+    const bound=brushSidesRaw.getFloat32(sideOff,true);
+    const planeNum=brushSidesRaw.getInt32(sideOff,true);
+    if(ver<=31&&planeDists.length>0&&planeNum>=0&&planeNum<planeDists.length){
+      if((bound>0&&bound<1e-30)||(bound<0&&bound>-1e-30)){
+        return planeDists[planeNum];
+      }
+    }
+    return bound;
+  }
+  if(brushesRaw&&brushSidesRaw&&matNames.length>0){
+    const BRUSH_STRIDE=4,BRUSHSIDE_STRIDE=8;
+    const nBrushes=Math.floor(brushesRaw.byteLength/BRUSH_STRIDE);
+    const nSides=Math.floor(brushSidesRaw.byteLength/BRUSHSIDE_STRIDE);
+    let sideIdx=0;
+    for(let b=0;b<nBrushes&&sideIdx+6<=nSides;b++){
+      const numSides=brushesRaw.getInt16(b*BRUSH_STRIDE,true);
+      if(numSides<6)continue;
+      const mins=[1e9,1e9,1e9],maxs=[-1e9,-1e9,-1e9];
+      const sideMats=[null,null,null,null,null,null];
+      for(let a=0;a<6;a++){
+        const off=(sideIdx+a)*BRUSHSIDE_STRIDE;
+        const bound=getBrushSideBound(off);
+        const matNum=brushSidesRaw.getInt32(off+4,true);
+        if(a%2===0)mins[a>>1]=bound;else maxs[a>>1]=bound;
+        sideMats[a]=matNum>=0&&matNum<matNames.length?matNames[matNum]:"";
+      }
+      const modelIdx=b<brushToModel.length?brushToModel[b]:0;
+      const instances=modelIdx>0&&modelEntities[modelIdx]&&modelEntities[modelIdx].length>0?modelEntities[modelIdx]:null;
+      for(let axis=0;axis<3;axis++){
+        for(let sign=0;sign<2;sign++){
+          const matName=sideMats[axis*2+sign]||"";
+          const val=sign?maxs[axis]:mins[axis];
+          let v0,v1,v2,v3;
+          if(axis===0){
+            v0=[val,mins[1],mins[2]];v1=[val,maxs[1],mins[2]];v2=[val,maxs[1],maxs[2]];v3=[val,mins[1],maxs[2]];
+          }else if(axis===1){
+            v0=[mins[0],val,mins[2]];v1=[maxs[0],val,mins[2]];v2=[maxs[0],val,maxs[2]];v3=[mins[0],val,maxs[2]];
+          }else{
+            v0=[mins[0],mins[1],val];v1=[maxs[0],mins[1],val];v2=[maxs[0],maxs[1],val];v3=[mins[0],maxs[1],val];
+          }
+          if(instances){
+            for(const inst of instances){
+              const rot=anglesToRotationMatrixBSP(inst.angles);
+              const [x0,y0,z0]=transformPointBSPToViewer(v0[0],v0[1],v0[2],inst.origin,rot);
+              const [x1,y1,z1]=transformPointBSPToViewer(v1[0],v1[1],v1[2],inst.origin,rot);
+              const [x2,y2,z2]=transformPointBSPToViewer(v2[0],v2[1],v2[2],inst.origin,rot);
+              const [x3,y3,z3]=transformPointBSPToViewer(v3[0],v3[1],v3[2],inst.origin,rot);
+              addMaterialTri(matName,[[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
+              addMaterialTri(matName,[[x0,y0,z0],[x2,y2,z2],[x3,y3,z3]]);
+            }
+          }else{
+            const x0=v0[0],y0=v0[2],z0=v0[1];
+            const x1=v1[0],y1=v1[2],z1=v1[1];
+            const x2=v2[0],y2=v2[2],z2=v2[1];
+            const x3=v3[0],y3=v3[2],z3=v3[1];
+            addMaterialTri(matName,[[x0,y0,z0],[x1,y1,z1],[x2,y2,z2]]);
+            addMaterialTri(matName,[[x0,y0,z0],[x2,y2,z2],[x3,y3,z3]]);
+          }
+        }
+      }
+      sideIdx+=numSides;
+    }
+  }
+
+  // Collision mesh: use sDrawCollMesh under AABB/COLLISION (not in Materials section)
+
   // Compute bounds for camera start
   let mnx=1e9,mny=1e9,mnz=1e9,mxx=-1e9,mxy=-1e9,mxz=-1e9;
-  for(let i=0;i<vi;i+=9){
+  for(let i=0;i<vi;i+=12){
     const px=vbo[i],py=vbo[i+1],pz=vbo[i+2];
     if(px<mnx)mnx=px;if(py<mny)mny=py;if(pz<mnz)mnz=pz;
     if(px>mxx)mxx=px;if(py>mxy)mxy=py;if(pz>mxz)mxz=pz;
@@ -934,43 +1502,71 @@ function parseD3DBSP(buf){
   const center=[(mnx+mxx)/2,(mny+mxy)/2,(mnz+mxz)/2];
   const startPos=spawnPos||[center[0],center[1]+100,center[2]];
 
-  return{vbo:vbo.subarray(0,vi),triCount,collisionMap,collisionTris,pathData,previewEnts,primaryLights,bounds:{min:[mnx,mny,mnz],max:[mxx,mxy,mxz]},startPos,startYaw:spawnYaw,startPitch:spawnPitch,ver,nSurfs,nVerts,nIdx,matCount:matColors.length,chunks,ident:0x50534249};
+  const hasLightBytes=chunks.some(c=>c.type===0x01);
+  const hasLightGrid=chunks.some(c=>[0x02,0x03,0x2C,0x2D].includes(c.type));
+  return{vbo:vbo.subarray(0,vi),triCount,collisionMap,collisionTris,triggerTris,triggerEntityPositions,materialTris,gfxCullGroups,gfxAabbTrees,masterCells,outdoorCells,portals,pathData,previewEnts,primaryLights,bounds:{min:[mnx,mny,mnz],max:[mxx,mxy,mxz]},startPos,startYaw:spawnYaw,startPitch:spawnPitch,ver,nSurfs,nVerts,nIdx,matCount:matColors.length,chunks,ident:0x50534249,worldspawnLighting,hasLightBytes,hasLightGrid};
 }
 
 // WebGL
 const canvas=document.getElementById("gl");
-let gl,prog,uMVP,uSun,uAmb,vao,gpuBuf,mapData=null;
+let gl,prog,uMVP,uSun,uAmb,uUseMapLighting,uUseLightingOnly,uSunBoost,uWorldspawnTint,uMapExposure,uMapGamma,uAmbientFloor,vao,gpuBuf,mapData=null;
 let lineProg,lineMVP,lineCol,lineVao,lineBuf,lineCount=0;
 let pathnodeLineVao=null,pathnodeLineBuf=null,pathnodeLineCount=0;
 let pathnodeDebugDirty=true;
 let entityLineVao=null,entityLineBuf=null,entityLineCount=0;
 let entityPreviewDirty=true;
+let wireframeLineVao=null,wireframeLineBuf=null,wireframeLineCount=0;
+let wireframeDirty=true;
 
 const VS=`#version 300 es
 layout(location=0)in vec3 a_pos;
 layout(location=1)in vec3 a_norm;
-layout(location=2)in vec3 a_col;
+layout(location=2)in vec3 a_matCol;
+layout(location=3)in vec3 a_vertCol;
 out vec3 v_norm;
-out vec3 v_col;
+out vec3 v_matCol;
+out vec3 v_vertCol;
 uniform mat4 u_mvp;
 void main(){
   gl_Position=u_mvp*vec4(a_pos,1.0);
   v_norm=a_norm;
-  v_col=a_col;
+  v_matCol=a_matCol;
+  v_vertCol=a_vertCol;
 }`;
 
 const FS=`#version 300 es
 precision mediump float;
 in vec3 v_norm;
-in vec3 v_col;
+in vec3 v_matCol;
+in vec3 v_vertCol;
 out vec4 o;
 uniform vec3 u_sun;
 uniform float u_amb;
+uniform float u_useMapLighting;
+uniform float u_useLightingOnly;
+uniform float u_sunBoost;
+uniform vec3 u_worldspawnTint;
+uniform float u_mapExposure;
+uniform float u_mapGamma;
+uniform float u_ambientFloor;
 void main(){
+  vec3 col;
   vec3 n=normalize(v_norm);
-  float d=max(dot(n,u_sun),0.0);
-  float l=u_amb+(1.0-u_amb)*d;
-  o=vec4(v_col*l,1.0);
+  float sunDot=max(dot(n,u_sun),0.0);
+  if(u_useMapLighting>0.5){
+    // Baked vertex color from cod2radiosity; optionally tint by material
+    // u_ambientFloor: 0.005 when no lightmap/lightgrid (dark interiors), 0.02 when baked
+    vec3 mod=v_vertCol*u_worldspawnTint*u_mapExposure;
+    mod=max(mod,vec3(u_ambientFloor));
+    mod=mod*(1.0+u_sunBoost*sunDot);
+    col=(u_useLightingOnly>0.5)?mod:v_matCol*mod;
+    col=max(col,vec3(0.0));
+    col=pow(col,vec3(u_mapGamma));
+  }else{
+    float l=u_amb+(1.0-u_amb)*sunDot;
+    col=v_matCol*l;
+  }
+  o=vec4(col,1.0);
 }`;
 
 function initGL(){
@@ -989,6 +1585,13 @@ function initGL(){
   uMVP=gl.getUniformLocation(prog,"u_mvp");
   uSun=gl.getUniformLocation(prog,"u_sun");
   uAmb=gl.getUniformLocation(prog,"u_amb");
+  uUseMapLighting=gl.getUniformLocation(prog,"u_useMapLighting");
+  uUseLightingOnly=gl.getUniformLocation(prog,"u_useLightingOnly");
+  uSunBoost=gl.getUniformLocation(prog,"u_sunBoost");
+  uWorldspawnTint=gl.getUniformLocation(prog,"u_worldspawnTint");
+  uMapExposure=gl.getUniformLocation(prog,"u_mapExposure");
+  uMapGamma=gl.getUniformLocation(prog,"u_mapGamma");
+  uAmbientFloor=gl.getUniformLocation(prog,"u_ambientFloor");
   gl.useProgram(prog);
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
@@ -1020,16 +1623,33 @@ function uploadMesh(vboData){
   gpuBuf=gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER,gpuBuf);
   gl.bufferData(gl.ARRAY_BUFFER,vboData,gl.STATIC_DRAW);
-  const stride=36; // 9 floats * 4 bytes
+  const stride=48; // 12 floats * 4 bytes (pos,norm,matCol,vertCol)
   gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,stride,0);
   gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,3,gl.FLOAT,false,stride,12);
   gl.enableVertexAttribArray(2);gl.vertexAttribPointer(2,3,gl.FLOAT,false,stride,24);
+  gl.enableVertexAttribArray(3);gl.vertexAttribPointer(3,3,gl.FLOAT,false,stride,36);
   gl.bindVertexArray(null);
+}
+
+function buildArrowHeadLines(a,b,col,arrowLen=20){
+  const dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2];
+  const len=Math.sqrt(dx*dx+dy*dy+dz*dz);
+  if(len<1e-6)return[];
+  const dir=[dx/len,dy/len,dz/len];
+  const up=[0,1,0];
+  let px=dir[1]*up[2]-dir[2]*up[1],py=dir[2]*up[0]-dir[0]*up[2],pz=dir[0]*up[1]-dir[1]*up[0];
+  let plen=Math.sqrt(px*px+py*py+pz*pz);
+  if(plen<1e-6){up[0]=1;up[1]=0;up[2]=0;px=dir[1]*up[2]-dir[2]*up[1];py=dir[2]*up[0]-dir[0]*up[2];pz=dir[0]*up[1]-dir[1]*up[0];plen=Math.sqrt(px*px+py*py+pz*pz);}
+  if(plen>1e-6){px/=plen;py/=plen;pz/=plen;}
+  const wing=arrowLen*0.6;
+  const left=[b[0]-dir[0]*arrowLen+px*wing,b[1]-dir[1]*arrowLen+py*wing,b[2]-dir[2]*arrowLen+pz*wing];
+  const right=[b[0]-dir[0]*arrowLen-px*wing,b[1]-dir[1]*arrowLen-py*wing,b[2]-dir[2]*arrowLen-pz*wing];
+  return[b[0],b[1],b[2],col[0],col[1],col[2],left[0],left[1],left[2],col[0],col[1],col[2],b[0],b[1],b[2],col[0],col[1],col[2],right[0],right[1],right[2],col[0],col[1],col[2]];
 }
 
 function buildCollisionDebugLines(map){
   const lines=[];
-  const green=[0.2,0.9,0.3],cyan=[0.2,0.7,0.9];
+  const green=getDebugColor("collisionMesh"),cyan=getDebugColor("aabbTree");
   const tris=map.collisionMap?.collisionTrisFromMap||map.collisionTris;
   if(tris&&getB("sDrawCollMesh")){
     for(const t of tris){
@@ -1039,8 +1659,12 @@ function buildCollisionDebugLines(map){
       lines.push(v2[0],v2[1],v2[2],green[0],green[1],green[2],v0[0],v0[1],v0[2],green[0],green[1],green[2]);
     }
   }
-  if(map.collisionMap&&getB("sDrawAabb")&&map.collisionMap.aabbs){
-    const aabbs=map.collisionMap.aabbs;
+  const src=getS("sAabbSource");
+  let aabbs=null;
+  if(src==="gfx")aabbs=map.gfxCullGroups;
+  else if(src==="gfxAabbTrees")aabbs=map.gfxAabbTrees;
+  else aabbs=map.collisionMap?.aabbs||null;
+  if(aabbs&&getB("sDrawAabb")){
     for(const n of aabbs){
       const mx=[n.origin[0]-n.halfSize[0],n.origin[1]-n.halfSize[1],n.origin[2]-n.halfSize[2]];
       const Mx=[n.origin[0]+n.halfSize[0],n.origin[1]+n.halfSize[1],n.origin[2]+n.halfSize[2]];
@@ -1048,6 +1672,92 @@ function buildCollisionDebugLines(map){
       const v001=[mx[0],mx[1],Mx[2]],v101=[Mx[0],mx[1],Mx[2]],v011=[mx[0],Mx[1],Mx[2]],v111=[Mx[0],Mx[1],Mx[2]];
       const edges=[[v000,v100],[v100,v110],[v110,v010],[v010,v000],[v001,v101],[v101,v111],[v111,v011],[v011,v001],[v000,v001],[v100,v101],[v110,v111],[v010,v011]];
       for(const e of edges)lines.push(e[0][0],e[0][1],e[0][2],cyan[0],cyan[1],cyan[2],e[1][0],e[1][1],e[1][2],cyan[0],cyan[1],cyan[2]);
+    }
+  }
+  const cellGreen=getDebugColor("masterCells");
+  if(map.masterCells&&getB("sShowMasterCells")){
+    for(const n of map.masterCells){
+      const mx=[n.origin[0]-n.halfSize[0],n.origin[1]-n.halfSize[1],n.origin[2]-n.halfSize[2]];
+      const Mx=[n.origin[0]+n.halfSize[0],n.origin[1]+n.halfSize[1],n.origin[2]+n.halfSize[2]];
+      const v000=[mx[0],mx[1],mx[2]],v100=[Mx[0],mx[1],mx[2]],v010=[mx[0],Mx[1],mx[2]],v110=[Mx[0],Mx[1],mx[2]];
+      const v001=[mx[0],mx[1],Mx[2]],v101=[Mx[0],mx[1],Mx[2]],v011=[mx[0],Mx[1],Mx[2]],v111=[Mx[0],Mx[1],Mx[2]];
+      const edges=[[v000,v100],[v100,v110],[v110,v010],[v010,v000],[v001,v101],[v101,v111],[v111,v011],[v011,v001],[v000,v001],[v100,v101],[v110,v111],[v010,v011]];
+      for(const e of edges)lines.push(e[0][0],e[0][1],e[0][2],cellGreen[0],cellGreen[1],cellGreen[2],e[1][0],e[1][1],e[1][2],cellGreen[0],cellGreen[1],cellGreen[2]);
+    }
+  }
+  if(map.outdoorCells&&getB("sShowOutdoorCells")){
+    for(const n of map.outdoorCells){
+      const mx=[n.origin[0]-n.halfSize[0],n.origin[1]-n.halfSize[1],n.origin[2]-n.halfSize[2]];
+      const Mx=[n.origin[0]+n.halfSize[0],n.origin[1]+n.halfSize[1],n.origin[2]+n.halfSize[2]];
+      const v000=[mx[0],mx[1],mx[2]],v100=[Mx[0],mx[1],mx[2]],v010=[mx[0],Mx[1],mx[2]],v110=[Mx[0],Mx[1],mx[2]];
+      const v001=[mx[0],mx[1],Mx[2]],v101=[Mx[0],mx[1],Mx[2]],v011=[mx[0],Mx[1],Mx[2]],v111=[Mx[0],Mx[1],Mx[2]];
+      const edges=[[v000,v100],[v100,v110],[v110,v010],[v010,v000],[v001,v101],[v101,v111],[v111,v011],[v011,v001],[v000,v001],[v100,v101],[v110,v111],[v010,v011]];
+      for(const e of edges)lines.push(e[0][0],e[0][1],e[0][2],cellGreen[0],cellGreen[1],cellGreen[2],e[1][0],e[1][1],e[1][2],cellGreen[0],cellGreen[1],cellGreen[2]);
+    }
+  }
+  const portalColor=getDebugColor("portals");
+  if(map.portals&&getB("sShowPortals")){
+    for(const portal of map.portals){
+      const verts=portal.vertices;
+      if(!verts||verts.length<3)continue;
+      for(let i=0;i<verts.length;i++){
+        const a=verts[i],b=verts[(i+1)%verts.length];
+        lines.push(a[0],a[1],a[2],portalColor[0],portalColor[1],portalColor[2],b[0],b[1],b[2],portalColor[0],portalColor[1],portalColor[2]);
+      }
+    }
+  }
+  const targetColor=getDebugColor("targetLines"),triggerColor=getDebugColor("triggers");
+  if(map.previewEnts&&getB("sShowTargetLines")){
+    const byTargetname={};
+    for(const e of map.previewEnts){
+      if(!e.origin||e.origin.length<3)continue;
+      const tn=e.keyvalues?.targetname;
+      if(!tn||typeof tn!=="string")continue;
+      const key=tn.trim();
+      if(!key)continue;
+      if(!byTargetname[key])byTargetname[key]=[];
+      byTargetname[key].push(e);
+    }
+    for(const e of map.previewEnts){
+      if(!e.origin||e.origin.length<3)continue;
+      const kv=e.keyvalues||{};
+      for(const key of Object.keys(kv)){
+        if(key==="targetname")continue;
+        if(!key.startsWith("target"))continue;
+        const t=kv[key];
+        if(!t||typeof t!=="string")continue;
+        const targets=byTargetname[t.trim()];
+        if(!targets||!targets.length)continue;
+        const a=e.origin;
+        for(const target of targets){
+          if(!target.origin||target.origin.length<3)continue;
+          const b=target.origin;
+          lines.push(a[0],a[1],a[2],targetColor[0],targetColor[1],targetColor[2],b[0],b[1],b[2],targetColor[0],targetColor[1],targetColor[2]);
+          lines.push(...buildArrowHeadLines(a,b,targetColor));
+        }
+      }
+    }
+  }
+  if(getB("sShowTriggers")&&map.triggerTris){
+    for(const tri of map.triggerTris){
+      const v0=tri[0],v1=tri[1],v2=tri[2];
+      lines.push(v0[0],v0[1],v0[2],triggerColor[0],triggerColor[1],triggerColor[2],v1[0],v1[1],v1[2],triggerColor[0],triggerColor[1],triggerColor[2]);
+      lines.push(v1[0],v1[1],v1[2],triggerColor[0],triggerColor[1],triggerColor[2],v2[0],v2[1],v2[2],triggerColor[0],triggerColor[1],triggerColor[2]);
+      lines.push(v2[0],v2[1],v2[2],triggerColor[0],triggerColor[1],triggerColor[2],v0[0],v0[1],v0[2],triggerColor[0],triggerColor[1],triggerColor[2]);
+    }
+  }
+  const matColors_wf={clip:[0.4,0.9,0.4],nodraw:[0.6,0.6,0.6],nosight:[0.5,0.8,0.5],lightportal:[1,0.9,0.3],lightgrid:[0.9,0.9,0.5],lightgrid_sky:[0.7,0.85,1],trigger:[1,0.4,0.4],spawner_trigger:[1,0.6,0.4],shadowcaulk:[0.25,0.25,0.45],mantle:[0.6,0.4,0.8],mine:[0.5,0.3,0.3],traverse:[0.4,0.7,0.9],undertow:[0.3,0.5,0.8],portal:[0.9,0.5,0.2],kill:[0.9,0.2,0.2],goal:[0.2,0.8,0.4],hint:[0.9,0.7,0.2],fog:[0.6,0.7,0.9],aitrig:[0.8,0.5,0.5],exposure:[0.7,0.6,0.9],reflection:[0.5,0.6,1],volume:[0.5,0.5,1],caulk:[0.8,0.4,0.8],shadowcaster:[0.3,0.3,0.5]};
+  const mt=map.materialTris||{};
+  const matKeys=[["clip","sShowClip"],["nodraw","sShowNodraw"],["nosight","sShowNosight"],["lightportal","sShowLightportal"],["lightgrid","sShowLightgrid"],["lightgrid_sky","sShowLightgridSky"],["trigger","sShowTriggerMat"],["spawner_trigger","sShowSpawnerTrigger"],["shadowcaulk","sShowShadowcaulk"],["mantle","sShowMantle"],["mine","sShowMine"],["traverse","sShowTraverse"],["undertow","sShowUndertow"],["portal","sShowPortal"],["kill","sShowKill"],["goal","sShowGoal"],["hint","sShowHint"],["fog","sShowFog"],["aitrig","sShowAitrig"],["exposure","sShowExposure"],["reflection","sShowReflection"],["volume","sShowVolume"],["caulk","sShowCaulk"],["shadowcaster","sShowShadowcaster"]];
+  if(getB("sShowMaterialOptions"))for(const [key,id] of matKeys){
+    const show=getB(id)||((key==="trigger"||key==="aitrig"||key==="spawner_trigger")&&getB("sShowTriggers"));
+    if(!show||!mt[key]?.length)continue;
+    const col=matColors_wf[key];
+    for(const tri of mt[key]){
+      const v0=tri[0],v1=tri[1],v2=tri[2];
+      lines.push(v0[0],v0[1],v0[2],col[0],col[1],col[2],v1[0],v1[1],v1[2],col[0],col[1],col[2]);
+      lines.push(v1[0],v1[1],v1[2],col[0],col[1],col[2],v2[0],v2[1],v2[2],col[0],col[1],col[2]);
+      lines.push(v2[0],v2[1],v2[2],col[0],col[1],col[2],v0[0],v0[1],v0[2],col[0],col[1],col[2]);
     }
   }
   if(lines.length===0){lineCount=0;return;}
@@ -1069,11 +1779,13 @@ let collDebugDirty=true;
 function buildPathnodeDebugLines(map){
   if(!map.pathData||!map.pathData.nodes.length)return;
   const lines=[];
-  const yellow=[1,0.9,0.2],orange=[1,0.5,0.1];
+  const yellow=getDebugColor("pathnodeConnections"),orange=getDebugColor("pathnodeMarkers");
   const nodes=map.pathData.nodes;
   const drawConn=getB("sPathConn");
   const drawMarkers=getB("sPathMarkers");
   const size=Math.max(4,getF("sPathSize")||24);
+  const maxDist=Math.max(0,getF("sPathMaxDist")||0);
+  let drawnCount=0,skippedNoTarget=0,skippedMaxDist=0;
   for(let i=0;i<nodes.length;i++){
     const n=nodes[i];
     const p=n.origin;
@@ -1084,21 +1796,24 @@ function buildPathnodeDebugLines(map){
       lines.push(x,y-size,z,orange[0],orange[1],orange[2],x,y+size,z,orange[0],orange[1],orange[2]);
       lines.push(x,y,z-size,orange[0],orange[1],orange[2],x,y,z+size,orange[0],orange[1],orange[2]);
     }
+    // Connections: ONLY from lump (n.links). One line per link. No inference.
     if(drawConn&&n.links){
-      const maxDist=Math.max(0,getF("sPathMaxDist")||0);
       for(const link of n.links){
         const j=link.nodeNum;
-        if(j>=0&&j<nodes.length&&nodes[j].origin){
-          const q=nodes[j].origin;
-          if(maxDist>0){
-            const dx=q[0]-x,dy=q[1]-y,dz=q[2]-z;
-            if(dx*dx+dy*dy+dz*dz>maxDist*maxDist)continue;
-          }
-          lines.push(x,y,z,yellow[0],yellow[1],yellow[2],q[0],q[1],q[2],yellow[0],yellow[1],yellow[2]);
+        if(j<0||j>=nodes.length||!nodes[j].origin){skippedNoTarget++;continue;}
+        const q=nodes[j].origin;
+        if(maxDist>0){
+          const dx=q[0]-x,dy=q[1]-y,dz=q[2]-z;
+          if(dx*dx+dy*dy+dz*dz>maxDist*maxDist){skippedMaxDist++;continue;}
         }
+        lines.push(x,y,z,yellow[0],yellow[1],yellow[2],q[0],q[1],q[2],yellow[0],yellow[1],yellow[2]);
+        drawnCount++;
       }
     }
   }
+  map.pathData._drawnLinks=drawnCount;
+  map.pathData._skippedNoTarget=skippedNoTarget;
+  map.pathData._skippedMaxDist=skippedMaxDist;
   if(lines.length===0){pathnodeLineCount=0;return;}
   const arr=new Float32Array(lines);
   if(pathnodeLineVao)gl.deleteVertexArray(pathnodeLineVao);
@@ -1114,32 +1829,170 @@ function buildPathnodeDebugLines(map){
   pathnodeLineCount=lines.length/6;
 }
 
+function buildWireframeLines(map){
+  if(!map||!map.vbo||map.triCount===0)return;
+  const vbo=map.vbo;
+  const stride=12;
+  const wfColor=getDebugColor("wireframe");
+  const lines=[];
+  for(let t=0;t<map.triCount;t++){
+    const base=t*3*stride;
+    const x0=vbo[base+0],y0=vbo[base+1],z0=vbo[base+2];
+    const x1=vbo[base+12+0],y1=vbo[base+12+1],z1=vbo[base+12+2];
+    const x2=vbo[base+24+0],y2=vbo[base+24+1],z2=vbo[base+24+2];
+    lines.push(x0,y0,z0,wfColor[0],wfColor[1],wfColor[2],x1,y1,z1,wfColor[0],wfColor[1],wfColor[2]);
+    lines.push(x1,y1,z1,wfColor[0],wfColor[1],wfColor[2],x2,y2,z2,wfColor[0],wfColor[1],wfColor[2]);
+    lines.push(x2,y2,z2,wfColor[0],wfColor[1],wfColor[2],x0,y0,z0,wfColor[0],wfColor[1],wfColor[2]);
+  }
+  if(lines.length===0){wireframeLineCount=0;return;}
+  const arr=new Float32Array(lines);
+  if(wireframeLineVao)gl.deleteVertexArray(wireframeLineVao);
+  if(wireframeLineBuf)gl.deleteBuffer(wireframeLineBuf);
+  wireframeLineVao=gl.createVertexArray();
+  gl.bindVertexArray(wireframeLineVao);
+  wireframeLineBuf=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,wireframeLineBuf);
+  gl.bufferData(gl.ARRAY_BUFFER,arr,gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,24,0);
+  gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,3,gl.FLOAT,false,24,12);
+  gl.bindVertexArray(null);
+  wireframeLineCount=lines.length/6;
+}
+
+function buildSphereLines(ox,oy,oz,r,col,segs=16){
+  const lines=[];
+  for(let i=0;i<segs;i++){
+    const a0=2*Math.PI*i/segs,a1=2*Math.PI*(i+1)/segs;
+    lines.push(ox+r*Math.cos(a0),oy,oz+r*Math.sin(a0),col[0],col[1],col[2],ox+r*Math.cos(a1),oy,oz+r*Math.sin(a1),col[0],col[1],col[2]);
+    lines.push(ox+r*Math.cos(a0),oy+r*Math.sin(a0),oz,col[0],col[1],col[2],ox+r*Math.cos(a1),oy+r*Math.sin(a1),oz,col[0],col[1],col[2]);
+    lines.push(ox,oy+r*Math.cos(a0),oz+r*Math.sin(a0),col[0],col[1],col[2],ox,oy+r*Math.cos(a1),oz+r*Math.sin(a1),col[0],col[1],col[2]);
+  }
+  return lines;
+}
+function buildConeLines(ox,oy,oz,dir,r,halfFovInnerDeg,halfFovOuterDeg,col,segs=12){
+  const lines=[];
+  const halfInner=halfFovInnerDeg*Math.PI/180;
+  const halfOuter=halfFovOuterDeg*Math.PI/180;
+  const coneLen=r;
+  const baseRadOuter=coneLen*Math.tan(halfOuter);
+  const baseRadInner=coneLen*Math.tan(halfInner);
+  const dx=dir[0],dy=dir[1],dz=dir[2];
+  const len=Math.sqrt(dx*dx+dy*dy+dz*dz)||1;
+  const ux=dx/len,uy=dy/len,uz=dz/len;
+  let rx,ry,rz;
+  if(Math.abs(uy)>0.9){rx=0;ry=uz;rz=-uy;}
+  else{rx=-uz;ry=0;rz=ux;}
+  const rl=Math.sqrt(rx*rx+ry*ry+rz*rz)||1;rx/=rl;ry/=rl;rz/=rl;
+  const sx=uy*rz-uz*ry,sy=uz*rx-ux*rz,sz=ux*ry-uy*rx;
+  const apex=[ox,oy,oz];
+  const tip=[ox+ux*coneLen,oy+uy*coneLen,oz+uz*coneLen];
+  for(let i=0;i<segs;i++){
+    const a0=2*Math.PI*i/segs,a1=2*Math.PI*(i+1)/segs;
+    const c0=Math.cos(a0),s0=Math.sin(a0),c1=Math.cos(a1),s1=Math.sin(a1);
+    const b0o=[tip[0]+baseRadOuter*(rx*c0+sx*s0),tip[1]+baseRadOuter*(ry*c0+sy*s0),tip[2]+baseRadOuter*(rz*c0+sz*s0)];
+    const b1o=[tip[0]+baseRadOuter*(rx*c1+sx*s1),tip[1]+baseRadOuter*(ry*c1+sy*s1),tip[2]+baseRadOuter*(rz*c1+sz*s1)];
+    lines.push(apex[0],apex[1],apex[2],col[0],col[1],col[2],b0o[0],b0o[1],b0o[2],col[0],col[1],col[2]);
+    lines.push(b0o[0],b0o[1],b0o[2],col[0],col[1],col[2],b1o[0],b1o[1],b1o[2],col[0],col[1],col[2]);
+    if(baseRadInner>0.1){
+      const b0i=[tip[0]+baseRadInner*(rx*c0+sx*s0),tip[1]+baseRadInner*(ry*c0+sy*s0),tip[2]+baseRadInner*(rz*c0+sz*s0)];
+      const b1i=[tip[0]+baseRadInner*(rx*c1+sx*s1),tip[1]+baseRadInner*(ry*c1+sy*s1),tip[2]+baseRadInner*(rz*c1+sz*s1)];
+      lines.push(apex[0],apex[1],apex[2],col[0],col[1],col[2],b0i[0],b0i[1],b0i[2],col[0],col[1],col[2]);
+      lines.push(b0i[0],b0i[1],b0i[2],col[0],col[1],col[2],b1i[0],b1i[1],b1i[2],col[0],col[1],col[2]);
+    }
+  }
+  return lines;
+}
+function addMarker(x,y,z,col){const s=20;return[[x-s,y,z,x+s,y,z],[x,y-s,z,x,y+s,z],[x,y,z-s,x,y,z+s]].flatMap(([a,b,c,d,e,f])=>[a,b,c,col[0],col[1],col[2],d,e,f,col[0],col[1],col[2]]);}
+function parseEntityColor(kv,fallback){
+  const str=(kv&&(kv._color||kv.color||""))||"";
+  const parts=str.trim().split(/\s+/).map(parseFloat).filter(n=>!isNaN(n));
+  if(parts.length>=3){
+    let r=parts[0],g=parts[1],b=parts[2];
+    if(r>1||g>1||b>1){r/=255;g/=255;b/=255;}
+    return[Math.min(1,Math.max(0,r)),Math.min(1,Math.max(0,g)),Math.min(1,Math.max(0,b))];
+  }
+  return fallback;
+}
 function buildEntityPreviewLines(map){
   if(!map.previewEnts&&!map.primaryLights?.length)return;
   const lines=[];
-  const colors={actor:[1,0.3,0.3],light:[1,1,0.5],script_struct:[0.5,0.7,1],script_origin:[0.4,0.8,1],other:[0.6,0.6,0.6],primaryLight:[1,0.9,0.6]};
-  const size=20;
-  function addMarker(x,y,z,col){
-    lines.push(x-size,y,z,col[0],col[1],col[2],x+size,y,z,col[0],col[1],col[2]);
-    lines.push(x,y-size,z,col[0],col[1],col[2],x,y+size,z,col[0],col[1],col[2]);
-    lines.push(x,y,z-size,col[0],col[1],col[2],x,y,z+size,col[0],col[1],col[2]);
-  }
+  const colors={actor:[1,0.3,0.3],light:[1,1,0.5],script_struct:[0.5,0.7,1],script_origin:[0.4,0.8,1],other:[0.6,0.6,0.6],trigger:[0.3,0.8,1],primaryLight:[1,0.9,0.6]};
   const showActors=getB("sActors"),showLights=getB("sLights"),showScriptStructs=getB("sScriptStructs");
   const showScriptOrigins=getB("sScriptOrigins"),showLightingInfo=getB("sLightingInfo"),showAll=getB("sAllTypes");
+  const showTriggers=getB("sShowTriggers");
+  const byTargetname={};
+  if(map.previewEnts){
+    for(const e of map.previewEnts){
+      const tn=(e.keyvalues?.targetname||"").trim();
+      if(!tn)continue;
+      if(!byTargetname[tn])byTargetname[tn]=[];
+      byTargetname[tn].push(e);
+    }
+  }
+  function dirToTarget(origin,kv){
+    if(!kv)return null;
+    for(const key of Object.keys(kv)){
+      if(!key.startsWith("target"))continue;
+      const t=(kv[key]||"").trim();
+      if(!t)continue;
+      const targets=byTargetname[t];
+      if(!targets?.length)continue;
+      for(const tg of targets){
+        if(!tg.origin||tg.origin.length<3)continue;
+        const dx=tg.origin[0]-origin[0],dy=tg.origin[1]-origin[1],dz=tg.origin[2]-origin[2];
+        const len=Math.sqrt(dx*dx+dy*dy+dz*dz)||1;
+        return[dx/len,dy/len,dz/len];
+      }
+    }
+    return null;
+  }
+  function addLightShape(origin,radius,type,dir,kv,col){
+    const ox=origin[0],oy=origin[1],oz=origin[2];
+    const r=Math.min(Math.max(radius||100,30),2000);
+    const fovOuter=(kv&&kv.fov_outer)?parseFloat(kv.fov_outer):(type===1?80:360);
+    const fovInner=(kv&&kv.fov_inner)?parseFloat(kv.fov_inner):(fovOuter*0.5);
+    const isSpot=(type===1||(fovOuter<360&&fovOuter>0));
+    let d=dir&&dir.length>=3?[dir[0],dir[1],dir[2]]:[0,1,0];
+    if(isSpot&&fovOuter>0){lines.push(...buildConeLines(ox,oy,oz,d,r,fovInner/2,fovOuter/2,col));}
+    else{lines.push(...buildSphereLines(ox,oy,oz,r,col));}
+    lines.push(...addMarker(ox,oy,oz,col));
+  }
+  function drawEntityShape(e,col){
+    const kv=e.keyvalues||{};
+    const radius=parseFloat(kv.radius);
+    const ox=e.origin[0],oy=e.origin[1],oz=e.origin[2];
+    if(!isNaN(radius)&&radius>0){
+      lines.push(...buildSphereLines(ox,oy,oz,Math.min(Math.max(radius,10),2000),col));
+      lines.push(...addMarker(ox,oy,oz,col));
+    }else{lines.push(...addMarker(ox,oy,oz,col));}
+  }
   if(map.previewEnts){
     for(const e of map.previewEnts){
       if(!e.origin||e.origin.length<3)continue;
       const t=e.previewType;
-      if(showAll){addMarker(e.origin[0],e.origin[1],e.origin[2],colors.other);continue;}
-      if(t==="actor"&&showActors)addMarker(e.origin[0],e.origin[1],e.origin[2],colors.actor);
-      else if(t==="light"&&showLights)addMarker(e.origin[0],e.origin[1],e.origin[2],colors.light);
-      else if(t==="script_struct"&&showScriptStructs)addMarker(e.origin[0],e.origin[1],e.origin[2],colors.script_struct);
-      else if(t==="script_origin"&&(showScriptStructs||showScriptOrigins))addMarker(e.origin[0],e.origin[1],e.origin[2],colors.script_origin);
+      const kv=e.keyvalues||{};
+      const isTrigger=(e.classname||"").toLowerCase().includes("trigger");
+      const col=parseEntityColor(kv,isTrigger?colors.trigger:colors.other);
+      if(showAll){drawEntityShape(e,col);continue;}
+      if(showTriggers&&isTrigger){drawEntityShape(e,parseEntityColor(kv,colors.trigger));continue;}
+      if(t==="actor"&&showActors)drawEntityShape(e,parseEntityColor(kv,colors.actor));
+      else if(t==="light"&&showLights){
+        const radius=parseFloat(kv.radius)||300;
+        const fovOuter=parseFloat(kv.fov_outer)||360;
+        let dir=dirToTarget(e.origin,kv);
+        if(!dir&&e.angles&&e.angles.length>=2)dir=sunDirFromAngles(e.angles[1],e.angles[0]);
+        addLightShape(e.origin,radius,fovOuter<360?1:0,dir,kv,parseEntityColor(kv,colors.light));
+      }
+      else if(t==="script_struct"&&showScriptStructs)drawEntityShape(e,parseEntityColor(kv,colors.script_struct));
+      else if(t==="script_origin"&&(showScriptStructs||showScriptOrigins))drawEntityShape(e,parseEntityColor(kv,colors.script_origin));
     }
   }
   if(showLightingInfo&&map.primaryLights?.length){
     for(const l of map.primaryLights){
-      if(l.origin)addMarker(l.origin[0],l.origin[1],l.origin[2],colors.primaryLight);
+      if(l.origin){
+        const lcol=l.color&&l.color.length>=3?[Math.min(1,l.color[0]),Math.min(1,l.color[1]),Math.min(1,l.color[2])]:colors.primaryLight;
+        addLightShape(l.origin,l.radius,l.type,l.dir,{fov_outer:l.halfFovDeg?l.halfFovDeg*2:360},lcol);
+      }
     }
   }
   if(lines.length===0){entityLineCount=0;return;}
@@ -1161,12 +2014,14 @@ function getVisiblePreviewEntities(map){
   const out=[];
   const showActors=getB("sActors"),showLights=getB("sLights"),showScriptStructs=getB("sScriptStructs");
   const showScriptOrigins=getB("sScriptOrigins"),showLightingInfo=getB("sLightingInfo"),showAll=getB("sAllTypes");
+  const showTriggers=getB("sShowTriggers");
   if(map.previewEnts){
     for(const e of map.previewEnts){
       if(!e.origin||e.origin.length<3)continue;
       const t=e.previewType;
-      if(showAll||(t==="actor"&&showActors)||(t==="light"&&showLights)||(t==="script_struct"&&showScriptStructs)||(t==="script_origin"&&(showScriptStructs||showScriptOrigins)))
-        out.push({pos:e.origin,ent:e,label:"entity"});
+      const isTrigger=(e.classname||"").toLowerCase().includes("trigger");
+      if(showAll||(t==="actor"&&showActors)||(t==="light"&&showLights)||(t==="script_struct"&&showScriptStructs)||(t==="script_origin"&&(showScriptStructs||showScriptOrigins))||(showTriggers&&isTrigger))
+        out.push({pos:e.origin,ent:e,label:isTrigger?"trigger":"entity"});
     }
   }
   if(showLightingInfo&&map.primaryLights?.length){
@@ -1174,18 +2029,44 @@ function getVisiblePreviewEntities(map){
       if(l.origin)out.push({pos:l.origin,ent:l,label:"light"});
     }
   }
+  if(showTriggers&&map.triggerEntityPositions?.length){
+    for(const {entity,pos} of map.triggerEntityPositions){
+      if(pos&&pos.length>=3)out.push({pos,ent:entity,label:"trigger"});
+    }
+  }
   if(getB("sPathnodes")&&map.pathData?.nodes){
+    const pathNodeEnts=map.pathData.pathNodeEnts||[];
     for(let i=0;i<map.pathData.nodes.length;i++){
       const n=map.pathData.nodes[i];
-      if(n.origin)out.push({pos:n.origin,ent:{classname:"pathnode",keyvalues:{},index:i,links:n.links?.length},label:"pathnode"});
+      if(n.origin)out.push({pos:n.origin,ent:{classname:"pathnode",keyvalues:pathNodeEnts[i]?.keyvalues||{},index:i,links:n.links,linkCount:n.links?.length||0},label:"pathnode"});
     }
   }
   return out;
 }
 
 function formatEntityInfo(ent,label){
+  if(label==="light"&&ent.radius)return `Primary Light\nOrigin: ${(ent.origin||[]).join(", ")}\nRadius: ${ent.radius}\nType: ${ent.type===1?"Spot":"Point"}`;
   if(label==="light")return `Primary Light\nOrigin: ${(ent.origin||[]).join(", ")}`;
-  if(label==="pathnode")return `Pathnode #${ent.index||0}\nLinks: ${ent.links||0}`;
+  if(label==="trigger"){
+    const kv=ent.keyvalues||{};
+    const parts=[`${ent.classname||"trigger"}`];
+    const commonFirst=["classname","origin","angles","targetname","target","model"];
+    const keys=Object.keys(kv).sort((a,b)=>{const ai=commonFirst.indexOf(a),bi=commonFirst.indexOf(b);if(ai>=0&&bi>=0)return ai-bi;if(ai>=0)return -1;if(bi>=0)return 1;return a.localeCompare(b);});
+    for(const k of keys)parts.push(`${k}: ${kv[k]}`);
+    return parts.join("\n");
+  }
+  if(label==="pathnode"){
+    const parts=[`Pathnode #${ent.index??0}`];
+    parts.push(`Links: ${ent.linkCount??ent.links?.length??0} (from lump)`);
+    if(ent.links&&ent.links.length>0){
+      const linkStr=ent.links.slice(0,5).map(l=>`→${l.nodeNum} (${l.fDist?.toFixed(1)??"?"})`).join(", ");
+      parts.push(linkStr+(ent.links.length>5?"...":""));
+    }
+    const kv=ent.keyvalues||{};
+    const tn=kv.targetname||kv.target;
+    if(tn)parts.push(`Target: ${tn}`);
+    return parts.join("\n");
+  }
   const kv=ent.keyvalues||{};
   const parts=[`${ent.classname||"entity"}`];
   const commonFirst=["classname","origin","angles","targetname","target","model"];
@@ -1267,10 +2148,18 @@ function sunDirFromAngles(yawDeg,pitchDeg){
   const cp=Math.cos(pr);
   return[Math.cos(yr)*cp,Math.sin(pr),-Math.sin(yr)*cp];
 }
+function anglesFromSunDir(dx,dy,dz){
+  const len=Math.sqrt(dx*dx+dy*dy+dz*dz);
+  if(len<1e-6)return null;
+  const pitch=Math.asin(Math.max(-1,Math.min(1,dy/len)))*180/Math.PI;
+  const yaw=Math.atan2(-dz,dx)*180/Math.PI;
+  return{yaw:yaw<0?yaw+360:yaw,pitch};
+}
 
 // Settings
 function getF(id){return parseFloat(document.getElementById(id).value);}
 function getB(id){return document.getElementById(id).checked;}
+function getS(id){return document.getElementById(id).value;}
 
 function bindSlider(sliderId,valId,fmt){
   const s=document.getElementById(sliderId);
@@ -1281,8 +2170,10 @@ bindSlider("sSpeed","vSpeed");
 bindSlider("sSens","vSens",v=>(+v).toFixed(2));
 bindSlider("sFov","vFov");
 bindSlider("sAmbient","vAmbient",v=>(+v).toFixed(2));
+bindSlider("sMapExposure","vMapExposure",v=>(+v).toFixed(2));
 bindSlider("sSunYaw","vSunYaw");
 bindSlider("sSunPitch","vSunPitch");
+bindSlider("sSunBoost","vSunBoost",v=>(+v).toFixed(2));
 bindSlider("sCullR","vCullR",v=>+v===0?"Off":v);
 bindSlider("sPathSize","vPathSize");
 
@@ -1310,9 +2201,29 @@ document.getElementById("sCollDebug").addEventListener("change",e=>{
 });
 document.getElementById("sDrawCollMesh").addEventListener("change",()=>{collDebugDirty=true;});
 document.getElementById("sDrawAabb").addEventListener("change",()=>{collDebugDirty=true;});
+document.getElementById("sAabbSource").addEventListener("change",()=>{collDebugDirty=true;if(mapData)updateCollStats();});
+document.getElementById("sShowMasterCells").addEventListener("change",()=>{collDebugDirty=true;});
+document.getElementById("sShowOutdoorCells").addEventListener("change",()=>{collDebugDirty=true;});
+document.getElementById("sShowPortals").addEventListener("change",()=>{collDebugDirty=true;});
+document.getElementById("sShowTargetLines").addEventListener("change",()=>{collDebugDirty=true;});
+document.getElementById("sShowTriggers").addEventListener("change",()=>{collDebugDirty=true;entityPreviewDirty=true;});
+function updateMaterialOptionsVisibility(){
+  const c=document.getElementById("materialOptionsContainer");
+  const cb=document.getElementById("sShowMaterialOptions");
+  if(c&&cb)c.style.display=cb.checked?"block":"none";
+}
+document.getElementById("sShowMaterialOptions").addEventListener("change",()=>{updateMaterialOptionsVisibility();collDebugDirty=true;});
+["sShowClip","sShowNodraw","sShowNosight","sShowLightportal","sShowLightgrid","sShowLightgridSky","sShowTriggerMat","sShowSpawnerTrigger","sShowShadowcaulk","sShowMantle","sShowMine","sShowTraverse","sShowUndertow","sShowPortal","sShowKill","sShowGoal","sShowHint","sShowFog","sShowAitrig","sShowExposure","sShowReflection","sShowVolume","sShowCaulk","sShowShadowcaster"].forEach(id=>{
+  const el=document.getElementById(id);if(el)el.addEventListener("change",()=>{collDebugDirty=true;});
+});
+updateMaterialOptionsVisibility();
+document.getElementById("sWire").addEventListener("change",()=>{wireframeDirty=true;});
 document.getElementById("btnOpenBsp").addEventListener("click",()=>document.getElementById("fileInput").click());
 document.getElementById("btnBspInfo").addEventListener("click",showBspInfo);
 document.getElementById("bspInfoClose").addEventListener("click",()=>document.getElementById("bspInfoModal").classList.remove("visible"));
+document.getElementById("btnColors").addEventListener("click",showColorsModal);
+document.getElementById("colorsClose").addEventListener("click",()=>document.getElementById("colorsModal").classList.remove("visible"));
+document.getElementById("colorsModal").addEventListener("click",e=>{if(e.target.id==="colorsModal")e.target.classList.remove("visible");});
 document.getElementById("bspInfoModal").addEventListener("click",e=>{if(e.target.id==="bspInfoModal")e.target.classList.remove("visible");});
 document.getElementById("btnTeleportSpawn").addEventListener("click",()=>{
   if(mapData){
@@ -1331,17 +2242,61 @@ function updatePathStats(){
   const pd=mapData.pathData;
   let totalLinks=0;
   for(const n of pd.nodes)totalLinks+=n.links?n.links.length:0;
-  el.textContent=`${pd.nodeCount} nodes, ${totalLinks} links`;
+  let txt=`${pd.nodeCount} nodes, ${totalLinks} links (from lump)`;
+  if(pd.entityCount!==undefined&&pd.entityCount!==pd.nodeCount){
+    txt+=` — ${pd.entityCount} entities; index mismatch`;
+  }
+  const drawn=pd._drawnLinks;
+  if(drawn!==undefined){
+    txt+=`\n${drawn} lines drawn`;
+    if(pd._skippedNoTarget>0)txt+=`; ${pd._skippedNoTarget} hidden (no target pos)`;
+    if(pd._skippedMaxDist>0)txt+=`; ${pd._skippedMaxDist} hidden (max dist)`;
+  }
+  el.textContent=txt;
+}
+
+function updateAabbSourceDropdown(){
+  const sel=document.getElementById("sAabbSource");
+  sel.innerHTML="";
+  if(!mapData){
+    sel.disabled=true;
+    return;
+  }
+  const hasColl=mapData.collisionMap?.aabbs?.length;
+  const hasGfxCg=mapData.gfxCullGroups?.length;
+  const hasGfxTrees=mapData.gfxAabbTrees?.length;
+  if(hasColl)sel.appendChild(new Option("Collision","collision"));
+  if(hasGfxCg)sel.appendChild(new Option("Gfx CullGroups","gfx"));
+  if(hasGfxTrees)sel.appendChild(new Option("Gfx AabbTrees","gfxAabbTrees"));
+  sel.disabled=!hasColl&&!hasGfxCg&&!hasGfxTrees;
+  if(hasColl||hasGfxCg||hasGfxTrees){
+    const ver=mapData.ver||0;
+    let defaultSrc="collision";
+    if(ver>=45&&ver<=62&&hasGfxTrees)defaultSrc="gfxAabbTrees";
+    else if(ver>=45&&ver<=62&&hasColl)defaultSrc="collision";
+    else if(hasColl)defaultSrc="collision";
+    else if(hasGfxTrees)defaultSrc="gfxAabbTrees";
+    else defaultSrc="gfx";
+    sel.value=defaultSrc;
+  }
 }
 
 function updateCollStats(){
   const el=document.getElementById("collStats");
   if(!mapData){el.textContent="--";return;}
+  const src=getS("sAabbSource");
   const cm=mapData.collisionMap;
   const ct=mapData.collisionTris;
-  if(cm){
+  const gfx=mapData.gfxCullGroups;
+  const gfxTrees=mapData.gfxAabbTrees;
+  const mc=mapData.masterCells,oc=mapData.outdoorCells;
+  if(src==="gfx"&&gfx){
+    el.textContent=`Gfx: ${gfx.length} CullGroups${mc?.length?`\nMaster: ${mc.length}`:""}${oc?.length?` Outdoor: ${oc.length}`:""}${mapData.portals?.length?` Portals: ${mapData.portals.length}`:""}`;
+  }else if(src==="gfxAabbTrees"&&gfxTrees){
+    el.textContent=`Gfx: ${gfxTrees.length} AabbTrees${mc?.length?`\nMaster: ${mc.length}`:""}${oc?.length?` Outdoor: ${oc.length}`:""}${mapData.portals?.length?` Portals: ${mapData.portals.length}`:""}`;
+  }else if(cm){
     const nv=cm.verts?.length||0,nt=cm.collisionTrisFromMap?.length||0,np=cm.partitions?.length||0,na=cm.aabbs?.length||0;
-    el.textContent=`Map: ${nv} verts, ${nt} tris\n${np} partitions, ${na} AABBs\nRoots: ${(cm.rootAabbIndices||[]).length}`;
+    el.textContent=`Map: ${nv} verts, ${nt} tris\n${np} partitions, ${na} AABBs\nRoots: ${(cm.rootAabbIndices||[]).length}${mc?.length?`\nMaster: ${mc.length}`:""}${oc?.length?` Outdoor: ${oc.length}`:""}${mapData.portals?.length?` Portals: ${mapData.portals.length}`:""}`;
   }else if(ct){
     el.textContent=`Fallback: ${ct.length} tris\n(from render geometry)`;
   }else{
@@ -1389,6 +2344,7 @@ document.addEventListener("keydown",e=>{
   if(e.code==="Tab"){e.preventDefault();document.getElementById("panel").classList.toggle("collapsed");}
   if(e.code==="Escape"){
     if(document.getElementById("bspInfoModal").classList.contains("visible"))document.getElementById("bspInfoModal").classList.remove("visible");
+    else if(document.getElementById("colorsModal").classList.contains("visible"))document.getElementById("colorsModal").classList.remove("visible");
     else if(pointerLocked)document.exitPointerLock();
   }
 });
@@ -1405,26 +2361,63 @@ canvas.addEventListener("wheel",e=>{
 function showBspInfo(){
   if(!mapData){return;}
   const chunks=mapData.chunks||[];
-  const game=gameNameFromVersion(mapData.ver);
+  const game=gameNameFromVersionAndChunks(mapData.ver,chunks);
   const ident=mapData.ident!==undefined?mapData.ident:0x50534249;
   const identStr=String.fromCharCode(ident&0xff,(ident>>8)&0xff,(ident>>16)&0xff,(ident>>24)&0xff);
   let html='<div class="section"><div class="section-title">Header</div><table><tr><th>Ident</th><td class="mono">'+identStr+' (0x'+(ident>>>0).toString(16).toUpperCase()+')</td></tr><tr><th>Version</th><td>'+mapData.ver+'</td></tr><tr><th>Game</th><td>'+game+'</td></tr><tr><th>Chunks</th><td>'+chunks.length+'</td></tr></table></div>';
   html+='<div class="section"><div class="section-title">Summary</div><table><tr><th>Triangles</th><td>'+mapData.triCount.toLocaleString()+'</td></tr><tr><th>Surfaces</th><td>'+mapData.nSurfs+'</td></tr><tr><th>Vertices</th><td>'+mapData.nVerts+'</td></tr><tr><th>Indices</th><td>'+mapData.nIdx+'</td></tr><tr><th>Materials</th><td>'+mapData.matCount+'</td></tr>';
-  if(mapData.pathData)html+='<tr><th>Pathnodes</th><td>'+mapData.pathData.nodeCount+'</td></tr>';
+  if(mapData.pathData){
+    const pd=mapData.pathData;
+    html+='<tr><th>Pathnodes</th><td>'+pd.nodeCount+' (lump)';
+    if(pd.entityCount!==undefined&&pd.entityCount!==pd.nodeCount)html+='<br><span style="color:#f80">'+pd.entityCount+' entities — index mismatch</span>';
+    html+='</td></tr>';
+  }
   if(mapData.primaryLights&&mapData.primaryLights.length)html+='<tr><th>Primary Lights</th><td>'+mapData.primaryLights.length+'</td></tr>';
+  const nBrushTriggers=mapData.triggerTris?mapData.triggerTris.length:0;
+  const nEntTriggers=mapData.previewEnts?mapData.previewEnts.filter(e=>((e.classname||"").toLowerCase().includes("trigger"))).length:0;
+  if(nBrushTriggers>0||nEntTriggers>0)html+='<tr><th>Triggers</th><td>'+nBrushTriggers+' brush tris, '+nEntTriggers+' entities. Enable Debug Mode → Map triggers to view.</td></tr>';
   html+='</table></div>';
-  html+='<div class="section"><div class="section-title">Lumps</div><table><tr><th>#</th><th>Type</th><th>Name</th><th>Size</th></tr>';
+  const hasLightBytes=chunks.some(c=>c.type===0x01);
+  const hasLightGrid=chunks.some(c=>[0x02,0x03,0x2C,0x2D].includes(c.type));
+  html+='<div class="section"><div class="section-title">Light Data Used</div><table><tr><th>Source</th><th>Usage</th></tr>';
+  html+='<tr><td>DrawVerts color[4]</td><td>Baked vertex lighting. Sun boost adds directional light.</td></tr>';
+  html+='<tr><td>Worldspawn</td><td>sun, _color, sunlight, ambient (tint, exposure)</td></tr>';
+  html+='<tr><td>LUMP_PRIMARY_LIGHTS (0x2B)</td><td>'+((mapData.primaryLights&&mapData.primaryLights.length)||0)+' (not applied to geometry)</td></tr>';
+  html+='<tr><td>LUMP_LIGHTBYTES (0x01)</td><td>'+(hasLightBytes?'Present (not sampled; vertex colors used)':'Absent')+'</td></tr>';
+  html+='<tr><td>LUMP_LIGHTGRID (0x02,0x03,0x2C,0x2D)</td><td>'+(hasLightGrid?'Present (baked into vertex colors)':'Absent')+'</td></tr>';
+  html+='</table></div>';
+  html+='<div class="section"><div class="section-title">Lumps ('+chunks.length+')</div><div style="max-height:280px;overflow-y:auto"><table><tr><th>#</th><th>Type</th><th>Name</th><th>Size</th></tr>';
   let totalSize=0;
   for(let i=0;i<chunks.length;i++){
     const c=chunks[i];
     const typeHex='0x'+(c.type>>>0).toString(16).toUpperCase().padStart(2,'0');
-    const name=LUMP_NAMES[c.type]||'';
+    const name=LUMP_NAMES[c.type]||('-');
     totalSize+=c.len||0;
     html+='<tr><td>'+i+'</td><td class="mono">'+typeHex+'</td><td>'+(name||'-')+'</td><td>'+((c.len||0).toLocaleString())+' B</td></tr>';
   }
-  html+='<tr><td colspan="3"><strong>Total</strong></td><td>'+totalSize.toLocaleString()+' B</td></tr></table></div>';
+  html+='<tr><td colspan="3"><strong>Total</strong></td><td>'+totalSize.toLocaleString()+' B</td></tr></table></div></div>';
   document.getElementById("bspInfoBody").innerHTML=html;
   document.getElementById("bspInfoModal").classList.add("visible");
+}
+
+const DEBUG_COLOR_LABELS={targetLines:"Target lines",triggers:"Map triggers",portals:"Portals",masterCells:"Master/Outdoor cells",collisionMesh:"Collision mesh",aabbTree:"AABB tree",pathnodeMarkers:"Pathnode markers",pathnodeConnections:"Pathnode connections",wireframe:"Wireframe"};
+function showColorsModal(){
+  const body=document.getElementById("colorsBody");
+  let html="";
+  for(const key of DEBUG_COLOR_KEYS){
+    const label=DEBUG_COLOR_LABELS[key]||key;
+    html+=`<div class="color-row"><span>${label}</span><input type="color" id="color_${key}" value="${debugColors[key]||"#FFFFFF"}"></div>`;
+  }
+  body.innerHTML=html;
+  for(const key of DEBUG_COLOR_KEYS){
+    document.getElementById("color_"+key).addEventListener("input",e=>{
+      debugColors[key]=e.target.value;
+      collDebugDirty=true;
+      pathnodeDebugDirty=true;
+      wireframeDirty=true;
+    });
+  }
+  document.getElementById("colorsModal").classList.add("visible");
 }
 
 // File loading
@@ -1449,15 +2442,30 @@ function loadFile(file){
       dropzone.classList.add("hidden");
       loadingEl.classList.add("hidden");
       document.getElementById("btnBspInfo").style.display="block";
+      document.getElementById("btnColors").style.display="block";
       document.getElementById("btnOpenBsp").style.display="block";
       document.getElementById("btnTeleportSpawn").style.display="block";
       document.getElementById("btnTeleportOrigin").style.display="block";
       document.getElementById("hudStats").textContent=
         `${mapData.triCount.toLocaleString()} tris, ${mapData.nSurfs} surfs, ${mapData.matCount} mats, v${mapData.ver}`;
       document.title=`D3DBSP - ${file.name}`;
+      const ws=mapData.worldspawnLighting||{exposure:1};
+      const sMapExp=document.getElementById("sMapExposure"),vMapExp=document.getElementById("vMapExposure");
+      if(ws.exposure!==1){sMapExp.value=ws.exposure;vMapExp.textContent=ws.exposure.toFixed(2);}
+      if(ws.sunDir){
+        const ang=anglesFromSunDir(ws.sunDir[0],ws.sunDir[1],ws.sunDir[2]);
+        if(ang){
+          document.getElementById("sSunYaw").value=Math.round(ang.yaw);
+          document.getElementById("vSunYaw").textContent=Math.round(ang.yaw);
+          document.getElementById("sSunPitch").value=Math.round(ang.pitch);
+          document.getElementById("vSunPitch").textContent=Math.round(ang.pitch);
+        }
+      }
       collDebugDirty=true;
       pathnodeDebugDirty=true;
       entityPreviewDirty=true;
+      wireframeDirty=true;
+      updateAabbSourceDropdown();
       updateCollStats();
       updatePathStats();
       resize();
@@ -1561,13 +2569,39 @@ function frame(now){
   gl.uniformMatrix4fv(uMVP,false,mvp);
   gl.uniform3f(uSun,sd[0],sd[1],sd[2]);
   gl.uniform1f(uAmb,amb);
+  gl.uniform1f(uUseMapLighting,getB("sMapLighting")?1:0);
+  gl.uniform1f(uUseLightingOnly,getB("sLightingOnly")?1:0);
+  gl.uniform1f(uSunBoost,Math.max(0,getF("sSunBoost")||0));
+  const ws=mapData.worldspawnLighting||{tint:[1,1,1],exposure:1};
+  gl.uniform3f(uWorldspawnTint,ws.tint[0],ws.tint[1],ws.tint[2]);
+  gl.uniform1f(uMapExposure,(getF("sMapExposure")||1)*ws.exposure);
+  gl.uniform1f(uMapGamma,1.0/2.2);
+  const hasBaked=(mapData.hasLightBytes||mapData.hasLightGrid);
+  gl.uniform1f(uAmbientFloor,hasBaked?0.02:0.005);
 
+  const drawWireframe=getB("sWire");
+  const depthTestLines=getB("sDepthTestLines");
+  if(drawWireframe){
+    if(wireframeDirty){buildWireframeLines(mapData);wireframeDirty=false;}
+    if(wireframeLineCount>0&&lineProg){
+      gl.useProgram(lineProg);
+      gl.uniformMatrix4fv(lineMVP,false,mvp);
+      gl.bindVertexArray(wireframeLineVao);
+      gl.disable(gl.CULL_FACE);
+      if(depthTestLines){gl.enable(gl.DEPTH_TEST);gl.depthMask(true);}else{gl.disable(gl.DEPTH_TEST);gl.depthMask(false);}
+      gl.lineWidth(1);
+      gl.drawArrays(gl.LINES,0,wireframeLineCount);
+      gl.enable(gl.DEPTH_TEST);gl.depthMask(true);
+      gl.bindVertexArray(null);
+      gl.useProgram(prog);
+    }
+  }else{
   gl.bindVertexArray(vao);
 
   const cullR=getF("sCullR");
   if(cullR>0){
     // Distance culling: draw subsets (batch by 10000 tris for perf)
-    const stride9=9;
+    const stride12=12;
     const vbo=mapData.vbo;
     const cx=cam[0],cy=cam[1],cz=cam[2];
     const cr2=cullR*cullR;
@@ -1577,7 +2611,7 @@ function frame(now){
     for(let t=0;t<mapData.triCount;t+=batchSize){
       const end=Math.min(t+batchSize,mapData.triCount);
       const midT=Math.floor((t+end)/2);
-      const mi=midT*3*stride9;
+      const mi=midT*3*stride12;
       const bx=vbo[mi],by=vbo[mi+1],bz=vbo[mi+2];
       const dx=bx-cx,dy=by-cy,dz=bz-cz;
       if(dx*dx+dy*dy+dz*dz>cr2*4)continue;
@@ -1588,9 +2622,10 @@ function frame(now){
   }
 
   gl.bindVertexArray(null);
+  }
 
   // Entity preview overlay
-  const anyEntityPreview=getB("sActors")||getB("sLights")||getB("sScriptStructs")||getB("sScriptOrigins")||getB("sLightingInfo")||getB("sAllTypes");
+  const anyEntityPreview=getB("sActors")||getB("sLights")||getB("sScriptStructs")||getB("sScriptOrigins")||getB("sLightingInfo")||getB("sAllTypes")||getB("sShowTriggers");
   if(mapData&&anyEntityPreview){
     if(entityPreviewDirty){buildEntityPreviewLines(mapData);entityPreviewDirty=false;}
     if(entityLineCount>0&&lineProg){
@@ -1598,8 +2633,10 @@ function frame(now){
       gl.uniformMatrix4fv(lineMVP,false,mvp);
       gl.bindVertexArray(entityLineVao);
       gl.disable(gl.CULL_FACE);
+      if(depthTestLines){gl.enable(gl.DEPTH_TEST);gl.depthMask(true);}else{gl.disable(gl.DEPTH_TEST);gl.depthMask(false);}
       gl.lineWidth(1.5);
       gl.drawArrays(gl.LINES,0,entityLineCount);
+      gl.enable(gl.DEPTH_TEST);gl.depthMask(true);
       gl.bindVertexArray(null);
       gl.useProgram(prog);
     }
@@ -1607,40 +2644,37 @@ function frame(now){
 
   // Pathnode overlay
   if(mapData&&getB("sPathnodes")&&mapData.pathData){
-    if(pathnodeDebugDirty){buildPathnodeDebugLines(mapData);pathnodeDebugDirty=false;}
+    if(pathnodeDebugDirty){buildPathnodeDebugLines(mapData);pathnodeDebugDirty=false;if(getB("sPathnodes"))updatePathStats();}
     if(pathnodeLineCount>0&&lineProg){
       gl.useProgram(lineProg);
       gl.uniformMatrix4fv(lineMVP,false,mvp);
       gl.bindVertexArray(pathnodeLineVao);
       gl.disable(gl.CULL_FACE);
+      if(depthTestLines){gl.enable(gl.DEPTH_TEST);gl.depthMask(true);}else{gl.disable(gl.DEPTH_TEST);gl.depthMask(false);}
       gl.lineWidth(1.5);
       gl.drawArrays(gl.LINES,0,pathnodeLineCount);
+      gl.enable(gl.DEPTH_TEST);gl.depthMask(true);
       gl.bindVertexArray(null);
       gl.useProgram(prog);
     }
   }
 
   // Collision debug overlay
-  if(mapData&&(getB("sDrawCollMesh")||getB("sDrawAabb"))){
+  const anyMatOn=getB("sShowMaterialOptions")&&(getB("sShowClip")||getB("sShowNodraw")||getB("sShowNosight")||getB("sShowLightportal")||getB("sShowLightgrid")||getB("sShowLightgridSky")||getB("sShowTriggerMat")||getB("sShowSpawnerTrigger")||getB("sShowShadowcaulk")||getB("sShowMantle")||getB("sShowMine")||getB("sShowTraverse")||getB("sShowUndertow")||getB("sShowPortal")||getB("sShowKill")||getB("sShowGoal")||getB("sShowHint")||getB("sShowFog")||getB("sShowAitrig")||getB("sShowExposure")||getB("sShowReflection")||getB("sShowVolume")||getB("sShowCaulk")||getB("sShowShadowcaster")||getB("sShowTriggers"));
+  if(mapData&&(getB("sDrawCollMesh")||getB("sDrawAabb")||getB("sShowMasterCells")||getB("sShowOutdoorCells")||getB("sShowPortals")||getB("sShowTargetLines")||getB("sShowTriggers")||anyMatOn)){
     if(collDebugDirty){buildCollisionDebugLines(mapData);collDebugDirty=false;}
     if(lineCount>0&&lineProg){
       gl.useProgram(lineProg);
       gl.uniformMatrix4fv(lineMVP,false,mvp);
       gl.bindVertexArray(lineVao);
       gl.disable(gl.CULL_FACE);
+      if(depthTestLines){gl.enable(gl.DEPTH_TEST);gl.depthMask(true);}else{gl.disable(gl.DEPTH_TEST);gl.depthMask(false);}
       gl.lineWidth(1.5);
       gl.drawArrays(gl.LINES,0,lineCount);
+      gl.enable(gl.DEPTH_TEST);gl.depthMask(true);
       gl.bindVertexArray(null);
       gl.useProgram(prog);
     }
-  }
-
-  // Wireframe overlay
-  if(getB("sWire")){
-    // WebGL2 doesn't support gl.LINE mode on triangles natively.
-    // We use polygon offset to draw lines on top (approximate wireframe via gl.LINES hack).
-    // For true wireframe we'd need a separate line buffer, which is expensive.
-    // Skip for now - this checkbox is a placeholder for future enhancement.
   }
 
   // HUD
