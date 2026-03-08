@@ -1188,12 +1188,15 @@ function formatEntityInfo(ent,label){
   if(label==="pathnode")return `Pathnode #${ent.index||0}\nLinks: ${ent.links||0}`;
   const kv=ent.keyvalues||{};
   const parts=[`${ent.classname||"entity"}`];
-  if(ent.origin)parts.push(`Origin: ${ent.origin.join(", ")}`);
-  if(kv.targetname)parts.push(`Target: ${kv.targetname}`);
-  if(kv.target)parts.push(`Target: ${kv.target}`);
-  if(kv.model)parts.push(`Model: ${kv.model}`);
-  if(kv.radius)parts.push(`Radius: ${kv.radius}`);
-  if(kv._color)parts.push(`Color: ${kv._color}`);
+  const commonFirst=["classname","origin","angles","targetname","target","model"];
+  const keys=Object.keys(kv).sort((a,b)=>{
+    const ai=commonFirst.indexOf(a),bi=commonFirst.indexOf(b);
+    if(ai>=0&&bi>=0)return ai-bi;
+    if(ai>=0)return -1;
+    if(bi>=0)return 1;
+    return a.localeCompare(b);
+  });
+  for(const k of keys)parts.push(`${k}: ${kv[k]}`);
   return parts.join("\n");
 }
 
