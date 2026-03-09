@@ -70,6 +70,10 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
 #colorsModal .color-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 #colorsModal .color-row span{color:#bbb;flex:1;margin-right:12px}
 #colorsModal .color-row input[type=color]{width:40px;height:24px;border:1px solid #444;border-radius:4px;cursor:pointer;padding:0}
+#imagePreviewModal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:400;display:none;align-items:center;justify-content:center;padding:20px}
+#imagePreviewModal.visible{display:flex}
+#imagePreviewModal .box{background:#1e1e22;border:1px solid #444;border-radius:12px;max-width:90vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+#imagePreviewModal canvas{max-width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges}
 </style>
 </head>
 <body>
@@ -100,7 +104,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="panel-body">
     <div class="group">
       <div class="group-title">Movement</div>
-      <label class="disabled" title="Not usable"><span>Player Controller</span><input type="checkbox" id="sPlayer" disabled title="Walk with WASD, collision, spawn at camera (not usable)"></label>
+      <label class="disabled" title="Broken — coming later"><span>Player Controller</span><input type="checkbox" id="sPlayer" disabled title="Walk with WASD, BSP collision, jump (broken — coming later)"></label>
       <label><span>Speed</span><input type="range" id="sSpeed" min="50" max="5000" value="400" step="10"><span class="val" id="vSpeed">400</span></label>
       <label><span>Sensitivity</span><input type="range" id="sSens" min="0.05" max="1.0" value="0.2" step="0.01"><span class="val" id="vSens">0.20</span></label>
       <button class="btn" id="btnTeleportSpawn" style="width:100%;padding:6px;font-size:12px;margin-top:6px;display:none" title="Teleport to info_player_start">Teleport to Spawn</button>
@@ -136,6 +140,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
       <label><span>Show script_structs</span><input type="checkbox" id="sScriptStructs" title="Script struct entities"></label>
       <label><span>Show script_origins</span><input type="checkbox" id="sScriptOrigins" title="Script structs with origin"></label>
       <label><span>Show lighting info</span><input type="checkbox" id="sLightingInfo" title="BSP primary lights"></label>
+      <label><span>Show reflection probes</span><input type="checkbox" id="sReflectionProbes" title="Reflection probe positions (LUMP 0x29)"></label>
       <label><span>Show all types</span><input type="checkbox" id="sAllTypes" title="All entity types with origin"></label>
       <label><span>Show info on hover</span><input type="checkbox" id="sHoverInfo" checked title="Tooltip when hovering"></label>
     </div>
@@ -164,6 +169,8 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
         <label><span>Show portals</span><input type="checkbox" id="sShowPortals" title="Wireframe polygons for visibility portals between cells"></label>
         <div class="group-title" style="margin-top:8px;font-size:10px;color:#777">Entity Links</div>
         <label><span>Target lines</span><input type="checkbox" id="sShowTargetLines" title="Lines from entity target to targetname (script/entity links)"></label>
+        <label><span>Show ropes</span><input type="checkbox" id="sShowRopes" title="Rope entities (classname rope/info_rope): line from origin to target entity"></label>
+        <label><span>Rope mode</span><select id="sRopeMode" title="Draw: straight line. Simulate: catenary curve (physics-accurate sag)"><option value="draw">Draw (line)</option><option value="simulate">Simulate (catenary)</option></select></label>
         <label><span>Map triggers</span><input type="checkbox" id="sShowTriggers" title="Wireframe of trigger brushes (material 'trigger' or entity classname contains 'trigger' + model). Non-brush triggers (trigger_radius etc.) show as sphere. Uncheck 'Depth test lines' to see triggers through geometry. Hover for KVP."></label>
         <div class="group-title" style="margin-top:8px;font-size:10px;color:#777">Materials (wireframe)</div>
         <label><span>Material options (experimental)</span><input type="checkbox" id="sShowMaterialOptions" title="Show material wireframes (clip, trigger, etc). May not work for all BSP formats."></label>
@@ -202,6 +209,8 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
     <div class="group">
       <button class="btn" id="btnBspInfo" style="width:100%;padding:8px;font-size:13px;display:none" title="Show all BSP lumps and game info">BSP Info</button>
       <button class="btn" id="btnColors" style="width:100%;padding:8px;font-size:13px;margin-top:6px;display:none" title="Set colors for debug overlay options">Colors</button>
+      <button class="btn" id="btnPreviewLightmap" style="width:100%;padding:8px;font-size:13px;margin-top:6px;display:none" title="Preview lightmap image (experimental)">Preview Lightmap (experimental)</button>
+      <button class="btn" id="btnPreviewReflectionProbe" style="width:100%;padding:8px;font-size:13px;margin-top:6px;display:none" title="Preview reflection probe cubemap (experimental)">Preview Reflection Probe (experimental)</button>
       <button class="btn" id="btnOpenBsp" style="width:100%;padding:8px;font-size:13px;margin-top:6px;display:none">Open Another BSP</button>
     </div>
   </div>
@@ -224,12 +233,27 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
     <div class="box-body" id="colorsBody"></div>
   </div>
 </div>
+<div id="imagePreviewModal">
+  <div class="box" style="max-width:90vw;max-height:90vh">
+    <div class="box-header">
+      <h3 id="imagePreviewTitle">Image Preview</h3>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn" id="imagePreviewExport" style="padding:4px 10px;font-size:12px;display:none" title="Export as lossless PNG">Export PNG</button>
+        <button class="box-close" id="imagePreviewClose" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div class="box-body" style="overflow:auto;padding:8px;display:flex;flex-direction:column;align-items:center">
+      <canvas id="imagePreviewCanvas"></canvas>
+      <div id="imagePreviewInfo" style="margin-top:8px;font-size:11px;color:#888;text-align:center"></div>
+    </div>
+  </div>
+</div>
 <div id="entityTooltip"></div>
 <div id="help">WASD move &middot; Mouse look &middot; Shift fast &middot; Space jump (player) &middot; Scroll speed &middot; Click to capture &middot; Esc release &middot; Tab settings &middot; Open BSP in panel &middot; Hover entities for info</div>
 <script>
 "use strict";
 
-const LUMP_MATERIALS=0x00,LUMP_PLANES=0x04,LUMP_BRUSHSIDES=0x05,LUMP_BRUSHES=0x08,LUMP_TRIANGLES=0x09,LUMP_DRAWVERTS=0x0A,LUMP_DRAWINDICES=0x0B,LUMP_CULLGROUPS=0x0C,LUMP_COLLISIONVERTS=0x1F,LUMP_COLLISIONTRIS=0x20,LUMP_COLLISIONPARTITIONS=0x23,LUMP_COLLISIONAABBS=0x24,LUMP_MODELS=0x25,LUMP_ENTITIES=0x27,LUMP_PATHCONNECTIONS=0x28,LUMP_PRIMARY_LIGHTS=0x2B,LUMP_UNLAYERED_CULLGROUPS=0x32,LUMP_UNLAYERED_TRIANGLES=0x2F,LUMP_UNLAYERED_DRAWVERTS=0x30,LUMP_UNLAYERED_DRAWINDICES=0x31,LUMP_BRUSHVERTS=0x17,LUMP_BRUSHVERTSCOUNTS=0x16,LUMP_BRUSHEDGES=0x07,LUMP_BRUSHSIDEEDGECOUNTS=0x06,LUMP_CELLS=0x19,LUMP_AABBTREES=0x18,LUMP_PORTALVERTS=0x13,LUMP_PORTALS=0x1A,LUMP_OUTDOORBOUNDS=0x4C;
+const LUMP_MATERIALS=0x00,LUMP_PLANES=0x04,LUMP_BRUSHSIDES=0x05,LUMP_BRUSHES=0x08,LUMP_TRIANGLES=0x09,LUMP_DRAWVERTS=0x0A,LUMP_DRAWINDICES=0x0B,LUMP_CULLGROUPS=0x0C,LUMP_COLLISIONVERTS=0x1F,LUMP_COLLISIONTRIS=0x20,LUMP_COLLISIONPARTITIONS=0x23,LUMP_COLLISIONAABBS=0x24,LUMP_MODELS=0x25,LUMP_ENTITIES=0x27,LUMP_PATHCONNECTIONS=0x28,LUMP_REFLECTION_PROBES=0x29,LUMP_PRIMARY_LIGHTS=0x2B,LUMP_UNLAYERED_CULLGROUPS=0x32,LUMP_UNLAYERED_TRIANGLES=0x2F,LUMP_UNLAYERED_DRAWVERTS=0x30,LUMP_UNLAYERED_DRAWINDICES=0x31,LUMP_BRUSHVERTS=0x17,LUMP_BRUSHVERTSCOUNTS=0x16,LUMP_BRUSHEDGES=0x07,LUMP_BRUSHSIDEEDGECOUNTS=0x06,LUMP_CELLS=0x19,LUMP_AABBTREES=0x18,LUMP_PORTALVERTS=0x13,LUMP_PORTALS=0x1A,LUMP_OUTDOORBOUNDS=0x4C,LUMP_SIMPLELIGHTMAPBYTES=0x3A,LUMP_LIGHTBYTES=0x01,LUMP_LIGHTBYTES_UNCOMPRESSED=0x0E;
 const LUMP_NAMES={
   0x00:"Materials",0x01:"LightBytes",0x02:"LightGridEntries",0x03:"LightGridColors",0x04:"Planes",0x05:"BrushSides",0x06:"BrushSideEdgeCounts",0x07:"BrushEdges",0x08:"Brushes",0x09:"Triangles",0x0A:"DrawVerts",0x0B:"DrawIndices",0x0C:"CullGroups",0x0D:"CullGroupIndices",0x0E:"LightBytesUncompressed",0x13:"PortalVerts",0x15:"Uinds",0x16:"BrushVertsCounts",0x17:"BrushVerts",0x18:"AabbTrees",0x19:"Cells",0x1A:"Portals",0x1B:"Nodes",0x1C:"Leafs",0x1D:"LeafBrushes",0x1E:"LeafSurfaces",0x1F:"CollisionVerts",0x20:"CollisionTris",0x21:"CollisionEdgeWalkable",0x22:"CollisionBorders",0x23:"CollisionPartitions",0x24:"CollisionAabbs",0x25:"Models",0x26:"Visibility",0x27:"Entities",0x28:"PathConnections",0x29:"ReflectionProbes",0x2A:"VertexLayerData",0x2B:"PrimaryLights",0x2C:"LightGridHeader",0x2D:"LightGridRows",0x2F:"UnlayeredTriangles",0x30:"UnlayeredDrawVerts",0x31:"UnlayeredDrawIndices",0x32:"UnlayeredCullGroups",0x33:"UnlayeredAabbTrees",
   0x34:"WaterHeader",0x35:"WaterCells",0x36:"WaterCellData",0x37:"BurnableHeader",0x38:"BurnableCells",0x39:"BurnableCellData",0x3A:"SimpleLightmapBytes",0x3B:"LodChains",0x3C:"LodInfos",0x3D:"LodSurfaces",0x3E:"LightRegions",0x3F:"LightRegionHulls",0x40:"LightRegionAxes",0x46:"LightCoronas",0x47:"ShadowmapVolumes",0x48:"ShadowmapVolumePlanes",0x49:"ExposureVolumes",0x4A:"ExposureVolumePlanes",0x4B:"Occluders",0x4C:"OutdoorBounds",0x4D:"HeroOnlyLights",0x52:"StaticModelData"
@@ -292,8 +316,8 @@ function matColor(name){
 }
 
 // Debug overlay colors (hex). Defaults match original values.
-const DEBUG_COLOR_KEYS=["targetLines","triggers","portals","masterCells","collisionMesh","aabbTree","pathnodeMarkers","pathnodeConnections","wireframe"];
-const debugColors={targetLines:"#FF6633",triggers:"#33CCFF",portals:"#E69933",masterCells:"#33E659",collisionMesh:"#33E64D",aabbTree:"#33B3E6",pathnodeMarkers:"#FF801A",pathnodeConnections:"#FFE633",wireframe:"#4D80A6"};
+const DEBUG_COLOR_KEYS=["targetLines","triggers","portals","masterCells","collisionMesh","aabbTree","pathnodeMarkers","pathnodeConnections","wireframe","ropes"];
+const debugColors={targetLines:"#FF6633",triggers:"#33CCFF",portals:"#E69933",masterCells:"#33E659",collisionMesh:"#33E64D",aabbTree:"#33B3E6",pathnodeMarkers:"#FF801A",pathnodeConnections:"#FFE633",wireframe:"#4D80A6",ropes:"#5A5A5A"};
 function rgbFromHex(hex){
   const m=hex.match(/^#?([a-fA-F0-9]{6})$/);
   if(!m)return[1,0.4,0.2];
@@ -370,7 +394,8 @@ function anglesToPitchRad(angles){
   return (angles[0]||0)*Math.PI/180;
 }
 
-// Collision: ray-triangle intersect
+// Collision: Q3-style (PM_ClipVelocity, PM_StepSlideMove from bg_slidemove.c). COD1/Q3 use brushes+planes;
+// we use tri-mesh (ray-tri, sphere-tri) for all formats. COD1: collision from TriangleSoup + clip supplement.
 function rayTriIntersect(ox,oy,oz,dx,dy,dz,v0,v1,v2){
   const e1x=v1[0]-v0[0],e1y=v1[1]-v0[1],e1z=v1[2]-v0[2];
   const e2x=v2[0]-v0[0],e2y=v2[1]-v0[1],e2z=v2[2]-v0[2];
@@ -501,6 +526,27 @@ function sphereCollidesCollMap(coll,px,py,pz,r){
   }
   for(let r=0;r<roots.length;r++){traverse(roots[r]);if(hit)break;}
   return hit;
+}
+
+// Capsule collision: test sphere at feet (y) and head (y+PLAYER_HEIGHT)
+function capsuleCollides(collMap,collTris,supplement,px,py,pz,r){
+  const feetY=py,headY=py+PLAYER_HEIGHT;
+  const testMain=(x,y,z)=>collMap?sphereCollidesCollMap(collMap,x,y,z,r):(collTris?sphereCollides(collTris,x,y,z,r):false);
+  const testSupp=(x,y,z)=>supplement?sphereCollides(supplement,x,y,z,r):false;
+  const test=(x,y,z)=>testMain(x,y,z)||testSupp(x,y,z);
+  return test(px,feetY,pz)||test(px,headY,pz);
+}
+
+// Slide movement with capsule: try move, if blocked slide along wall
+function slideMoveCapsule(collMap,collTris,supplement,fromX,feetY,fromZ,dx,dz){
+  const test=(x,z)=>!capsuleCollides(collMap,collTris,supplement,x,feetY,z,PLAYER_RADIUS);
+  let newX=fromX+dx,newZ=fromZ+dz;
+  if(test(newX,newZ))return{ok:true,x:newX,z:newZ};
+  if(test(fromX+dx,fromZ))return{ok:true,x:fromX+dx,z:fromZ};
+  if(test(fromX,fromZ+dz))return{ok:true,x:fromX,z:fromZ+dz};
+  const halfDx=dx*0.5,halfDz=dz*0.5;
+  if((Math.abs(dx)>1e-6||Math.abs(dz)>1e-6)&&test(fromX+halfDx,fromZ+halfDz))return{ok:true,x:fromX+halfDx,z:fromZ+halfDz};
+  return{ok:false,x:fromX,z:fromZ};
 }
 
 // Build 3x3 rotation matrix from BSP angles (pitch,yaw,roll) in degrees.
@@ -794,7 +840,8 @@ function parseD3DBSPLumpFormat(buf,ver){
   const chunksForLight=lumps.map((l,i)=>({type:i,len:l.len}));
   const hasLightBytes=chunksForLight.some(c=>c.type===1);
   const hasLightGrid=chunksForLight.some(c=>[2,3].includes(c.type));
-  return{vbo:vbo.subarray(0,vi),triCount,collisionMap:null,collisionTris,triggerTris,triggerEntityPositions:[],materialTris,pathData,previewEnts,primaryLights:[],bounds:{min:[mnx,mny,mnz],max:[mxx,mxy,mxz]},startPos,startYaw:spawnYaw,startPitch:spawnPitch,ver,nSurfs,nVerts,nIdx,matCount:matColors.length,chunks:chunksForLight,ident:0x50534249,worldspawnLighting,hasLightBytes,hasLightGrid};
+  const collisionTrisSupplement=materialTris.clip&&materialTris.clip.length>0?[...materialTris.clip]:null;
+  return{vbo:vbo.subarray(0,vi),triCount,collisionMap:null,collisionTris,triggerTris,triggerEntityPositions:[],materialTris,collisionTrisSupplement,pathData,previewEnts,primaryLights:[],reflectionProbes:[],ropePairs:[],bounds:{min:[mnx,mny,mnz],max:[mxx,mxy,mxz]},startPos,startYaw:spawnYaw,startPitch:spawnPitch,ver,nSurfs,nVerts,nIdx,matCount:matColors.length,chunks:chunksForLight,ident:0x50534249,worldspawnLighting,hasLightBytes,hasLightGrid,simpleLightmapRaw:null,lightBytesRaw:null,lightBytesUncompressedRaw:null};
 }
 
 function parseD3DBSP(buf){
@@ -923,6 +970,29 @@ function parseD3DBSP(buf){
     if(modelIdx>0)triggerModelIndices.add(modelIdx);
   }
 
+  // Rope entities (T5/T6/IW5: classname "rope", origin=start, target=entity name for end)
+  const ropePairs=[];
+  const byTargetname={};
+  for(const e of ents){
+    const tn=(e.keyvalues?.targetname||"").trim();
+    if(tn){if(!byTargetname[tn])byTargetname[tn]=[];byTargetname[tn].push(e);}
+  }
+  for(const e of ents){
+    const cn=(e.classname||"").toLowerCase();
+    if(cn!=="rope"&&cn!=="info_rope")continue;
+    if(!e.origin||e.origin.length<3)continue;
+    const kv=e.keyvalues||{};
+    const targetName=(kv.target||kv.target2||"").trim();
+    if(!targetName)continue;
+    const targets=byTargetname[targetName];
+    if(!targets||!targets.length)continue;
+    for(const t of targets){
+      if(!t.origin||t.origin.length<3)continue;
+      ropePairs.push({start:e.origin,end:t.origin,entity:e});
+      break;
+    }
+  }
+
   // Pathnodes: positions from pathnode entities, links from LUMP_PATHCONNECTIONS
   // READ-ONLY: We only read connection data from the lump. No inference or generation.
   // Include ALL pathnode entities to preserve index alignment: lump node n = n-th entity in parse order.
@@ -1004,6 +1074,30 @@ function parseD3DBSP(buf){
     }
   }
 
+  // Parse reflection probes (LUMP 0x29). IW3/IW4/IW5: 131140 B. T5/BO1: 263904 B. T6/BO2: 132956 B.
+  let reflectionProbes=[];
+  const probeRaw=getLumpDV(LUMP_REFLECTION_PROBES);
+  if(probeRaw&&probeRaw.byteLength>=12){
+    const IW_PROBE_SIZE=131140,T5_PROBE_SIZE=263904,T6_PROBE_SIZE=132956;
+    let probeSize=0,probeCount=0,pixelsOffset=12;
+    if(probeRaw.byteLength%IW_PROBE_SIZE===0){probeSize=IW_PROBE_SIZE;probeCount=probeRaw.byteLength/IW_PROBE_SIZE;pixelsOffset=76;}
+    else if(probeRaw.byteLength%T5_PROBE_SIZE===0){probeSize=T5_PROBE_SIZE;probeCount=probeRaw.byteLength/T5_PROBE_SIZE;pixelsOffset=12;}
+    else if(probeRaw.byteLength%T6_PROBE_SIZE===0){probeSize=T6_PROBE_SIZE;probeCount=probeRaw.byteLength/T6_PROBE_SIZE;pixelsOffset=12;}
+    else{
+      if(ver<=31&&probeRaw.byteLength>=IW_PROBE_SIZE){probeSize=IW_PROBE_SIZE;probeCount=Math.floor(probeRaw.byteLength/IW_PROBE_SIZE);pixelsOffset=76;}
+      else if(ver>=45&&ver<62&&probeRaw.byteLength>=T5_PROBE_SIZE){probeSize=T5_PROBE_SIZE;probeCount=Math.floor(probeRaw.byteLength/T5_PROBE_SIZE);pixelsOffset=12;}
+      else if(probeRaw.byteLength>=T6_PROBE_SIZE){probeSize=T6_PROBE_SIZE;probeCount=Math.floor(probeRaw.byteLength/T6_PROBE_SIZE);pixelsOffset=12;}
+      else if(probeRaw.byteLength>=IW_PROBE_SIZE){probeSize=IW_PROBE_SIZE;probeCount=Math.floor(probeRaw.byteLength/IW_PROBE_SIZE);pixelsOffset=76;}
+    }
+    if(probeCount===0&&probeRaw.byteLength>=IW_PROBE_SIZE&&ver<=22){probeSize=IW_PROBE_SIZE;probeCount=1;pixelsOffset=76;}
+    const pixelsSize=pixelsOffset===76?131064:probeSize===263904?262224:131232;
+    for(let i=0;i<probeCount;i++){
+      const off=i*probeSize;
+      const bx=probeRaw.getFloat32(off,true),by=probeRaw.getFloat32(off+4,true),bz=probeRaw.getFloat32(off+8,true);
+      reflectionProbes.push({origin:[bx,bz,by],index:i,probeSize,pixelsOffset,pixelsSize});
+    }
+  }
+
   // Count total triangles for buffer sizing (excluding skip materials)
   let totalTris=0;
   for(let s=0;s<nSurfs;s++){
@@ -1065,10 +1159,21 @@ function parseD3DBSP(buf){
     }
     let rootAabbIndices=[0];
     if(modelsRaw&&modelsRaw.byteLength>=MODEL_STRIDE){
+      const nModels=Math.floor(modelsRaw.byteLength/MODEL_STRIDE);
       const COLL_OFF=ver<=31?32:28,COLL_COUNT_OFF=ver<=31?36:32;
-      const firstColl=modelsRaw.getInt32(COLL_OFF,true);
-      const collCount=modelsRaw.getInt32(COLL_COUNT_OFF,true);
-      if(collCount>0){rootAabbIndices=[];for(let i=0;i<collCount;i++)rootAabbIndices.push(firstColl+i);}
+      const seen=new Set();
+      for(let m=0;m<nModels;m++){
+        const off=m*MODEL_STRIDE;
+        const firstColl=modelsRaw.getInt32(off+COLL_OFF,true);
+        const collCount=modelsRaw.getInt32(off+COLL_COUNT_OFF,true);
+        if(collCount>0&&firstColl>=0){
+          for(let i=0;i<collCount;i++){
+            const idx=firstColl+i;
+            if(idx<nAabb&&!seen.has(idx)){seen.add(idx);rootAabbIndices.push(idx);}
+          }
+        }
+      }
+      if(rootAabbIndices.length===0)rootAabbIndices=[0];
     }
     collisionMap={verts,tris,partitions,aabbs,rootAabbIndices};
     let collisionTrisFromMap=[];
@@ -1230,7 +1335,9 @@ function parseD3DBSP(buf){
   // vertCol from DrawVerts color[4] BGRA at offset 24 - baked lightmap/lightgrid
   const vbo=new Float32Array(totalTris*3*12);
   let vi=0,triCount=0;
-  const collisionTris=collisionMap?null:[];
+  // Always build collision from render geometry (Triangles+DrawVerts). Dedicated collision lumps (0x1F-0x24)
+  // may be absent or format-different per game; render tris are universal fallback for ALL games.
+  const collisionTris=[];
   const triggerTris=[];
   const triggerEntityPositions=[]; // {entity,pos} for brush triggers (centroid of tris)
   const materialTris={clip:[],nodraw:[],nosight:[],lightportal:[],lightgrid:[],lightgrid_sky:[],trigger:[],spawner_trigger:[],shadowcaulk:[],mantle:[],mine:[],traverse:[],undertow:[],portal:[],kill:[],goal:[],hint:[],fog:[],aitrig:[],exposure:[],reflection:[],volume:[],caulk:[],shadowcaster:[]};
@@ -1491,6 +1598,9 @@ function parseD3DBSP(buf){
 
   // Collision mesh: use sDrawCollMesh under AABB/COLLISION (not in Materials section)
 
+  // Brush clip geometry for collision supplement (AABB tree may not include all brushes/terrain)
+  const collisionTrisSupplement=materialTris.clip&&materialTris.clip.length>0?[...materialTris.clip]:null;
+
   // Compute bounds for camera start
   let mnx=1e9,mny=1e9,mnz=1e9,mxx=-1e9,mxy=-1e9,mxz=-1e9;
   for(let i=0;i<vi;i+=12){
@@ -1504,7 +1614,10 @@ function parseD3DBSP(buf){
 
   const hasLightBytes=chunks.some(c=>c.type===0x01);
   const hasLightGrid=chunks.some(c=>[0x02,0x03,0x2C,0x2D].includes(c.type));
-  return{vbo:vbo.subarray(0,vi),triCount,collisionMap,collisionTris,triggerTris,triggerEntityPositions,materialTris,gfxCullGroups,gfxAabbTrees,masterCells,outdoorCells,portals,pathData,previewEnts,primaryLights,bounds:{min:[mnx,mny,mnz],max:[mxx,mxy,mxz]},startPos,startYaw:spawnYaw,startPitch:spawnPitch,ver,nSurfs,nVerts,nIdx,matCount:matColors.length,chunks,ident:0x50534249,worldspawnLighting,hasLightBytes,hasLightGrid};
+  const simpleLightmapRaw=getLump(LUMP_SIMPLELIGHTMAPBYTES);
+  const lightBytesRaw=getLump(LUMP_LIGHTBYTES);
+  const lightBytesUncompressedRaw=getLump(LUMP_LIGHTBYTES_UNCOMPRESSED);
+  return{vbo:vbo.subarray(0,vi),triCount,collisionMap,collisionTris,triggerTris,triggerEntityPositions,materialTris,collisionTrisSupplement,gfxCullGroups,gfxAabbTrees,masterCells,outdoorCells,portals,pathData,previewEnts,primaryLights,reflectionProbes,ropePairs,bounds:{min:[mnx,mny,mnz],max:[mxx,mxy,mxz]},startPos,startYaw:spawnYaw,startPitch:spawnPitch,ver,nSurfs,nVerts,nIdx,matCount:matColors.length,chunks,ident:0x50534249,worldspawnLighting,hasLightBytes,hasLightGrid,simpleLightmapRaw,lightBytesRaw,lightBytesUncompressedRaw};
 }
 
 // WebGL
@@ -1746,6 +1859,40 @@ function buildCollisionDebugLines(map){
       lines.push(v2[0],v2[1],v2[2],triggerColor[0],triggerColor[1],triggerColor[2],v0[0],v0[1],v0[2],triggerColor[0],triggerColor[1],triggerColor[2]);
     }
   }
+  const ropeColor=getDebugColor("ropes");
+  if(getB("sShowRopes")&&map.ropePairs&&map.ropePairs.length>0){
+    const simulate=getS("sRopeMode")==="simulate";
+    const segments=simulate?40:1;
+    for(const rp of map.ropePairs){
+      const a=rp.start,b=rp.end;
+      if(simulate&&segments>1){
+        const dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2];
+        const len=Math.sqrt(dx*dx+dy*dy+dz*dz);
+        if(len<1e-6){lines.push(a[0],a[1],a[2],ropeColor[0],ropeColor[1],ropeColor[2],b[0],b[1],b[2],ropeColor[0],ropeColor[1],ropeColor[2]);continue;}
+        const along=[dx/len,dy/len,dz/len];
+        const g=[0,-1,0];
+        const gDotAlong=g[0]*along[0]+g[1]*along[1]+g[2]*along[2];
+        let down=[g[0]-gDotAlong*along[0],g[1]-gDotAlong*along[1],g[2]-gDotAlong*along[2]];
+        const downLen=Math.sqrt(down[0]*down[0]+down[1]*down[1]+down[2]*down[2]);
+        if(downLen>1e-6){down[0]/=downLen;down[1]/=downLen;down[2]/=downLen;}
+        else{down=[0,-1,0];}
+        const sagFrac=0.08;
+        const aParam=len/(8*sagFrac);
+        const prev=[a[0],a[1],a[2]];
+        for(let i=1;i<=segments;i++){
+          const t=i/segments;
+          const baseX=a[0]+dx*t,baseY=a[1]+dy*t,baseZ=a[2]+dz*t;
+          const xNorm=(t-0.5)*len;
+          const sagAmt=aParam*(Math.cosh(len/(2*aParam))-Math.cosh(xNorm/aParam));
+          const px=baseX+down[0]*sagAmt,py=baseY+down[1]*sagAmt,pz=baseZ+down[2]*sagAmt;
+          lines.push(prev[0],prev[1],prev[2],ropeColor[0],ropeColor[1],ropeColor[2],px,py,pz,ropeColor[0],ropeColor[1],ropeColor[2]);
+          prev[0]=px;prev[1]=py;prev[2]=pz;
+        }
+      }else{
+        lines.push(a[0],a[1],a[2],ropeColor[0],ropeColor[1],ropeColor[2],b[0],b[1],b[2],ropeColor[0],ropeColor[1],ropeColor[2]);
+      }
+    }
+  }
   const matColors_wf={clip:[0.4,0.9,0.4],nodraw:[0.6,0.6,0.6],nosight:[0.5,0.8,0.5],lightportal:[1,0.9,0.3],lightgrid:[0.9,0.9,0.5],lightgrid_sky:[0.7,0.85,1],trigger:[1,0.4,0.4],spawner_trigger:[1,0.6,0.4],shadowcaulk:[0.25,0.25,0.45],mantle:[0.6,0.4,0.8],mine:[0.5,0.3,0.3],traverse:[0.4,0.7,0.9],undertow:[0.3,0.5,0.8],portal:[0.9,0.5,0.2],kill:[0.9,0.2,0.2],goal:[0.2,0.8,0.4],hint:[0.9,0.7,0.2],fog:[0.6,0.7,0.9],aitrig:[0.8,0.5,0.5],exposure:[0.7,0.6,0.9],reflection:[0.5,0.6,1],volume:[0.5,0.5,1],caulk:[0.8,0.4,0.8],shadowcaster:[0.3,0.3,0.5]};
   const mt=map.materialTris||{};
   const matKeys=[["clip","sShowClip"],["nodraw","sShowNodraw"],["nosight","sShowNosight"],["lightportal","sShowLightportal"],["lightgrid","sShowLightgrid"],["lightgrid_sky","sShowLightgridSky"],["trigger","sShowTriggerMat"],["spawner_trigger","sShowSpawnerTrigger"],["shadowcaulk","sShowShadowcaulk"],["mantle","sShowMantle"],["mine","sShowMine"],["traverse","sShowTraverse"],["undertow","sShowUndertow"],["portal","sShowPortal"],["kill","sShowKill"],["goal","sShowGoal"],["hint","sShowHint"],["fog","sShowFog"],["aitrig","sShowAitrig"],["exposure","sShowExposure"],["reflection","sShowReflection"],["volume","sShowVolume"],["caulk","sShowCaulk"],["shadowcaster","sShowShadowcaster"]];
@@ -1914,11 +2061,11 @@ function parseEntityColor(kv,fallback){
   return fallback;
 }
 function buildEntityPreviewLines(map){
-  if(!map.previewEnts&&!map.primaryLights?.length)return;
+  if(!map.previewEnts&&!map.primaryLights?.length&&!map.reflectionProbes?.length)return;
   const lines=[];
-  const colors={actor:[1,0.3,0.3],light:[1,1,0.5],script_struct:[0.5,0.7,1],script_origin:[0.4,0.8,1],other:[0.6,0.6,0.6],trigger:[0.3,0.8,1],primaryLight:[1,0.9,0.6]};
+  const colors={actor:[1,0.3,0.3],light:[1,1,0.5],script_struct:[0.5,0.7,1],script_origin:[0.4,0.8,1],other:[0.6,0.6,0.6],trigger:[0.3,0.8,1],primaryLight:[1,0.9,0.6],reflectionProbe:[0.4,0.7,1]};
   const showActors=getB("sActors"),showLights=getB("sLights"),showScriptStructs=getB("sScriptStructs");
-  const showScriptOrigins=getB("sScriptOrigins"),showLightingInfo=getB("sLightingInfo"),showAll=getB("sAllTypes");
+  const showScriptOrigins=getB("sScriptOrigins"),showLightingInfo=getB("sLightingInfo"),showReflectionProbes=getB("sReflectionProbes"),showAll=getB("sAllTypes");
   const showTriggers=getB("sShowTriggers");
   const byTargetname={};
   if(map.previewEnts){
@@ -1995,6 +2142,15 @@ function buildEntityPreviewLines(map){
       }
     }
   }
+  if(showReflectionProbes&&map.reflectionProbes?.length){
+    for(const p of map.reflectionProbes){
+      if(p.origin){
+        const r=80;
+        lines.push(...buildSphereLines(p.origin[0],p.origin[1],p.origin[2],r,colors.reflectionProbe));
+        lines.push(...addMarker(p.origin[0],p.origin[1],p.origin[2],colors.reflectionProbe));
+      }
+    }
+  }
   if(lines.length===0){entityLineCount=0;return;}
   const arr=new Float32Array(lines);
   if(entityLineVao)gl.deleteVertexArray(entityLineVao);
@@ -2013,7 +2169,7 @@ function buildEntityPreviewLines(map){
 function getVisiblePreviewEntities(map){
   const out=[];
   const showActors=getB("sActors"),showLights=getB("sLights"),showScriptStructs=getB("sScriptStructs");
-  const showScriptOrigins=getB("sScriptOrigins"),showLightingInfo=getB("sLightingInfo"),showAll=getB("sAllTypes");
+  const showScriptOrigins=getB("sScriptOrigins"),showLightingInfo=getB("sLightingInfo"),showReflectionProbes=getB("sReflectionProbes"),showAll=getB("sAllTypes");
   const showTriggers=getB("sShowTriggers");
   if(map.previewEnts){
     for(const e of map.previewEnts){
@@ -2027,6 +2183,11 @@ function getVisiblePreviewEntities(map){
   if(showLightingInfo&&map.primaryLights?.length){
     for(const l of map.primaryLights){
       if(l.origin)out.push({pos:l.origin,ent:l,label:"light"});
+    }
+  }
+  if(showReflectionProbes&&map.reflectionProbes?.length){
+    for(const p of map.reflectionProbes){
+      if(p.origin)out.push({pos:p.origin,ent:p,label:"reflectionProbe"});
     }
   }
   if(showTriggers&&map.triggerEntityPositions?.length){
@@ -2045,6 +2206,7 @@ function getVisiblePreviewEntities(map){
 }
 
 function formatEntityInfo(ent,label){
+  if(label==="reflectionProbe")return `Reflection Probe #${ent.index??0}\nOrigin: ${(ent.origin||[]).join(", ")}`;
   if(label==="light"&&ent.radius)return `Primary Light\nOrigin: ${(ent.origin||[]).join(", ")}\nRadius: ${ent.radius}\nType: ${ent.type===1?"Spot":"Point"}`;
   if(label==="light")return `Primary Light\nOrigin: ${(ent.origin||[]).join(", ")}`;
   if(label==="trigger"){
@@ -2096,7 +2258,11 @@ let cam=[0,0,0],yaw=0,pitch=0;
 let pointerLocked=false;
 const keys={};
 let mouseCanvasX=0,mouseCanvasY=0,mouseClientX=0,mouseClientY=0;
-const PLAYER_RADIUS=18,PLAYER_EYE=56,GRAVITY=600;
+// NX1/COD-style player constants (from decompiled sources: playerState_s, BG_GetGravity, Jump_*)
+const PLAYER_RADIUS=18,PLAYER_EYE=56,PLAYER_HEIGHT=56;
+const GRAVITY=800;
+const WALK_SPEED=190,SPRINT_MULT=1.5,JUMP_VEL=340;
+const STEP_HEIGHT=18;
 let playerVelY=0;
 
 function angleVectors(yaw,pitch){
@@ -2178,9 +2344,9 @@ bindSlider("sCullR","vCullR",v=>+v===0?"Off":v);
 bindSlider("sPathSize","vPathSize");
 
 document.getElementById("sPlayer").addEventListener("change",e=>{
-  if(e.target.checked&&mapData){cam=[...cam];playerVelY=0;}
+  if(e.target.checked&&mapData){playerVelY=0;}
 });
-["sActors","sLights","sScriptStructs","sScriptOrigins","sLightingInfo","sAllTypes"].forEach(id=>{
+["sActors","sLights","sScriptStructs","sScriptOrigins","sLightingInfo","sReflectionProbes","sAllTypes"].forEach(id=>{
   document.getElementById(id).addEventListener("change",()=>{entityPreviewDirty=true;});
 });
 document.getElementById("sPathnodes").addEventListener("change",e=>{
@@ -2207,6 +2373,8 @@ document.getElementById("sShowOutdoorCells").addEventListener("change",()=>{coll
 document.getElementById("sShowPortals").addEventListener("change",()=>{collDebugDirty=true;});
 document.getElementById("sShowTargetLines").addEventListener("change",()=>{collDebugDirty=true;});
 document.getElementById("sShowTriggers").addEventListener("change",()=>{collDebugDirty=true;entityPreviewDirty=true;});
+document.getElementById("sShowRopes").addEventListener("change",()=>{collDebugDirty=true;if(mapData)updateCollStats();});
+document.getElementById("sRopeMode").addEventListener("change",()=>{collDebugDirty=true;});
 function updateMaterialOptionsVisibility(){
   const c=document.getElementById("materialOptionsContainer");
   const cb=document.getElementById("sShowMaterialOptions");
@@ -2223,8 +2391,304 @@ document.getElementById("btnBspInfo").addEventListener("click",showBspInfo);
 document.getElementById("bspInfoClose").addEventListener("click",()=>document.getElementById("bspInfoModal").classList.remove("visible"));
 document.getElementById("btnColors").addEventListener("click",showColorsModal);
 document.getElementById("colorsClose").addEventListener("click",()=>document.getElementById("colorsModal").classList.remove("visible"));
+document.getElementById("imagePreviewClose").addEventListener("click",()=>document.getElementById("imagePreviewModal").classList.remove("visible"));
+document.getElementById("imagePreviewExport").addEventListener("click",exportPreviewAsPng);
+document.getElementById("btnPreviewLightmap").addEventListener("click",showLightmapPreviewWithSelector);
+document.getElementById("btnPreviewReflectionProbe").addEventListener("click",showReflectionProbePreviewWithSelector);
+
+let currentExportFilename=null;
+function showImagePreview(title,imageData,info,exportBasename){
+  const modal=document.getElementById("imagePreviewModal");
+  const canvas=document.getElementById("imagePreviewCanvas");
+  const ctx=canvas.getContext("2d");
+  const infoEl=document.getElementById("imagePreviewInfo");
+  const exportBtn=document.getElementById("imagePreviewExport");
+  const probeSel=document.getElementById("probeSelect");
+  if(probeSel)probeSel.remove();
+  const lightmapSel=document.getElementById("lightmapSlotSelect");
+  if(lightmapSel)lightmapSel.remove();
+  document.getElementById("imagePreviewTitle").textContent=title;
+  if(imageData){
+    canvas.width=imageData.width;
+    canvas.height=imageData.height;
+    ctx.putImageData(imageData,0,0);
+    canvas.style.display="block";
+    currentExportFilename=exportBasename||"export";
+    exportBtn.style.display="inline-block";
+  }else{
+    canvas.style.display="none";
+    currentExportFilename=null;
+    exportBtn.style.display="none";
+  }
+  infoEl.textContent=info||"";
+  modal.classList.add("visible");
+}
+
+function exportPreviewAsPng(){
+  const canvas=document.getElementById("imagePreviewCanvas");
+  if(!canvas||canvas.style.display==="none"||!currentExportFilename)return;
+  const name=currentExportFilename.replace(/[^a-zA-Z0-9_-]/g,"_")+".png";
+  const a=document.createElement("a");
+  a.href=canvas.toDataURL("image/png");
+  a.download=name;
+  a.click();
+}
+
+function getLightmapSource(map){
+  if(!map)return null;
+  const ver=map.ver||0;
+  if(map.simpleLightmapRaw&&map.simpleLightmapRaw.length>=786432)return{raw:map.simpleLightmapRaw,source:"0x3A",ver};
+  if(map.lightBytesUncompressedRaw&&map.lightBytesUncompressedRaw.length>=3145728)return{raw:map.lightBytesUncompressedRaw,source:"0x0E",ver};
+  const lb=map.lightBytesRaw;
+  if(lb&&lb.length>=3145728){
+    if(lb.length%9437184===0)return{raw:lb,slotStride:9437184,primarySize:3145728,source:"0x01 T5",ver};
+    if(lb.length%3145728===0)return{raw:lb,slotStride:3145728,primarySize:3145728,source:"0x01 IW/IW5",ver};
+  }
+  return null;
+}
+
+function showLightmapPreview(slotIndex=0){
+  if(!mapData)return;
+  const src=getLightmapSource(mapData);
+  if(!src)return;
+  const SLOT_786K=786432,SLOT_3M=3145728,SLOT_T5=9437184;
+  const raw=src.raw;
+  let w=1024,h=256,slotSize=SLOT_786K,slotStride=SLOT_786K,format="1024×256",extractOffset=0;
+  if(src.slotStride===9437184){
+    slotStride=9437184;slotSize=3145728;extractOffset=0;w=1024;h=1024;format="1024×1024 (primary from 0x01)";
+  }else if(raw.length%SLOT_3M===0&&!src.slotStride){
+    slotSize=SLOT_3M;slotStride=SLOT_3M;w=1024;h=1024;format="1024×1024";
+  }else if(raw.length%SLOT_786K===0&&!src.slotStride){
+    slotSize=SLOT_786K;slotStride=SLOT_786K;w=1024;h=256;format="1024×256";
+  }else{
+    slotSize=Math.min(SLOT_786K,raw.length);slotStride=slotSize;w=1024;h=Math.floor(slotSize/(1024*3));if(h<1)h=1;format=w+"×"+h;
+  }
+  const nSlots=Math.floor(raw.length/slotStride);
+  const slot=Math.min(slotIndex,nSlots-1);
+  const base=slot*slotStride+extractOffset;
+  const slotData=raw.subarray(base,base+slotSize);
+  const img=new ImageData(w,h);
+  const gamma=2.2;
+  function fillImg(rIdx,gIdx,bIdx){
+    for(let i=0;i<w*h&&i*3+2<slotData.length;i++){
+      const r=slotData[i*3+rIdx]/255,g=slotData[i*3+gIdx]/255,b=slotData[i*3+bIdx]/255;
+      const sr=Math.pow(Math.max(0,r),1/gamma),sg=Math.pow(Math.max(0,g),1/gamma),sb=Math.pow(Math.max(0,b),1/gamma);
+      img.data[i*4]=Math.min(255,sr*255);img.data[i*4+1]=Math.min(255,sg*255);img.data[i*4+2]=Math.min(255,sb*255);img.data[i*4+3]=255;
+    }
+  }
+  fillImg(0,1,2);
+  let avg=0;for(let j=0;j<Math.min(w*h*4,img.data.length);j+=4)avg+=img.data[j]+img.data[j+1]+img.data[j+2];
+  avg/=w*h*3;
+  if(avg<8&&avg>0&&src.source.indexOf("0x01")>=0){fillImg(2,1,0);}
+  if(avg>0&&avg<15){const boost=Math.min(3,20/avg);for(let j=0;j<img.data.length;j+=4){img.data[j]=Math.min(255,img.data[j]*boost);img.data[j+1]=Math.min(255,img.data[j+1]*boost);img.data[j+2]=Math.min(255,img.data[j+2]*boost);}}
+  const slotLabel=nSlots>1?` (slot ${slot}/${nSlots})`:"";
+  showImagePreview("Lightmap Preview"+slotLabel,img,`${w}×${h} RGB, ${format}. ${nSlots} slot(s). Source: ${src.source}. Gamma ${gamma}.`,"lightmap_slot"+slot);
+}
+
+function showLightmapPreviewWithSelector(){
+  if(!mapData)return;
+  const src=getLightmapSource(mapData);
+  if(!src)return;
+  const raw=src.raw;
+  let slotStride=786432;
+  if(src.slotStride)slotStride=src.slotStride;
+  else if(raw.length%3145728===0)slotStride=3145728;
+  else if(raw.length%786432===0)slotStride=786432;
+  const nSlots=Math.floor(raw.length/slotStride);
+  showLightmapPreview(0);
+  if(nSlots>1){
+    const sel=document.createElement("select");
+    sel.id="lightmapSlotSelect";
+    for(let i=0;i<nSlots;i++)sel.appendChild(new Option("Slot "+i,i));
+    sel.style.marginBottom="8px";
+    const infoEl=document.getElementById("imagePreviewInfo");
+    sel.onchange=()=>{showLightmapPreview(parseInt(sel.value,10));infoEl.parentElement.insertBefore(sel,infoEl);};
+    infoEl.parentElement.insertBefore(sel,infoEl);
+  }
+}
+
+function decompressDXT1Block(src,srcOff,dst,dstOff,stride,c0,c1,flipBlockY){
+  const r0=((c0>>11)&0x1f)*(255/31),g0=((c0>>5)&0x3f)*(255/63),b0=(c0&0x1f)*(255/31);
+  const r1=((c1>>11)&0x1f)*(255/31),g1=((c1>>5)&0x3f)*(255/63),b1=(c1&0x1f)*(255/31);
+  let r2,g2,b2,r3,g3,b3;
+  if(c0>c1){
+    r2=(2*r0+r1)/3;g2=(2*g0+g1)/3;b2=(2*b0+b1)/3;
+    r3=(r0+2*r1)/3;g3=(g0+2*g1)/3;b3=(b0+2*b1)/3;
+  }else{
+    r2=(r0+r1)/2;g2=(g0+g1)/2;b2=(b0+b1)/2;
+    r3=0;g3=0;b3=0;
+  }
+  const pal=[[r0,g0,b0],[r1,g1,b1],[r2,g2,b2],[r3,g3,b3]];
+  const bits=new DataView(src.buffer,src.byteOffset+srcOff+4,4).getUint32(0,true);
+  for(let row=0;row<4;row++){
+    for(let col=0;col<4;col++){
+      const bitRow=flipBlockY?3-row:row;
+      const idx=(bits>>(2*(bitRow*4+col)))&3;
+      const i=(dstOff+row*stride+col)*4;
+      dst[i]=pal[idx][0];dst[i+1]=pal[idx][1];dst[i+2]=pal[idx][2];dst[i+3]=255;
+    }
+  }
+}
+
+function decompressDXT1Face(src,faceOff,faceSize,faceW,flipBlockY){
+  const faceH=faceW;
+  const blocksPerRow=faceW/4;
+  const img=new ImageData(faceW,faceH);
+  for(let by=0;by<blocksPerRow;by++){
+    for(let bx=0;bx<blocksPerRow;bx++){
+      const blockOff=faceOff+(by*blocksPerRow+bx)*8;
+      if(blockOff+8>src.length)continue;
+      const c0=src[blockOff]|(src[blockOff+1]<<8);
+      const c1=src[blockOff+2]|(src[blockOff+3]<<8);
+      decompressDXT1Block(src,blockOff,img.data,by*4*faceW+bx*4,faceW*4,c0,c1,flipBlockY);
+    }
+  }
+  return img;
+}
+
+function createPlaceholderCubemapFaces(faceW){
+  const faces=[];
+  const gray=88;
+  for(let f=0;f<6;f++){
+    const img=new ImageData(faceW,faceW);
+    for(let i=0;i<faceW*faceW*4;i+=4){
+      img.data[i]=gray;img.data[i+1]=gray;img.data[i+2]=gray;img.data[i+3]=255;
+    }
+    faces.push(img);
+  }
+  return faces;
+}
+
+function looksLikePlaceholderOrVolumeData(data,offset,len){
+  if(len<32)return false;
+  let zeros=0,aas=0;
+  for(let i=0;i<Math.min(len,256);i++){
+    const b=data[offset+i];
+    if(b===0)zeros++;
+    if(b===0xAA)aas++;
+  }
+  if(zeros>=80||aas>=80)return true;
+  const c0=data[offset]|(data[offset+1]<<8),c1=data[offset+2]|(data[offset+3]<<8);
+  const bits=(data[offset+7]<<24)|(data[offset+6]<<16)|(data[offset+5]<<8)|data[offset+4];
+  if(c0===0&&c1===0&&bits===0)return true;
+  return false;
+}
+
+function decodedImageLooksLikeGarbage(faces){
+  let blackCount=0,total=0;
+  for(const f of faces){
+    for(let i=0;i<f.data.length;i+=4){
+      total++;
+      const r=f.data[i],g=f.data[i+1],b=f.data[i+2];
+      if(r<15&&g<15&&b<15)blackCount++;
+    }
+  }
+  const blackRatio=total>0?blackCount/total:0;
+  let uniqueColors=0;
+  const seen=new Set();
+  for(const f of faces){
+    for(let i=0;i<Math.min(f.data.length,4000);i+=4){
+      const k=(f.data[i]<<16)|(f.data[i+1]<<8)|f.data[i+2];
+      if(!seen.has(k)){seen.add(k);uniqueColors++;}
+    }
+  }
+  return blackRatio>0.85||(uniqueColors>800&&blackRatio>0.5)||(uniqueColors>500&&blackRatio>0.7);
+}
+
+function showReflectionProbePreview(probeIndex=0){
+  if(!mapData)return;
+  if(!mapData.reflectionProbes||mapData.reflectionProbes.length===0){
+    showImagePreview("Reflection Probe","","LUMP 0x29 present but no probes parsed. Format may not be recognized (IW3/IW4/IW5: 131140 B, T5: 263904 B, T6: 132956 B per probe).");
+    return;
+  }
+  const probe=mapData.reflectionProbes[Math.min(probeIndex,mapData.reflectionProbes.length-1)];
+  const probeRaw=getLumpDataForMap(mapData,LUMP_REFLECTION_PROBES);
+  const pixOff=probe.index*probe.probeSize+(probe.pixelsOffset||12);
+  const pixelsAvailable=probeRaw?Math.min(probe.pixelsSize||(probeRaw.byteLength-pixOff),probeRaw.byteLength-pixOff):0;
+  const FACE_256=32768,FACE_128=8192,IW_FACE_STRIDE=21844;
+  let faceSize=FACE_256,faceW=256,faceStride=FACE_256;
+  const isT5=probe.probeSize===263904;
+  const isT6=probe.probeSize===132956;
+  const isIW=probe.pixelsOffset===76;
+  const mapVer=mapData.ver!=null?mapData.ver:0;
+  const isWaW=probe.probeSize===131140&&mapVer>=23&&mapVer<=31;
+  if(isT5&&pixelsAvailable>=6*FACE_256){
+    faceSize=FACE_256;faceW=256;faceStride=FACE_256;
+  }else if(isT6&&pixelsAvailable>=6*21872){
+    faceSize=FACE_128;faceW=128;faceStride=21872;
+  }else if(isIW&&pixelsAvailable>=6*IW_FACE_STRIDE){
+    faceSize=FACE_128;faceW=128;faceStride=IW_FACE_STRIDE;
+  }else if(pixelsAvailable>=6*FACE_256){
+    faceSize=FACE_256;faceW=256;faceStride=FACE_256;
+  }else if(pixelsAvailable>=6*FACE_128){
+    faceSize=FACE_128;faceW=128;faceStride=FACE_128;
+  }else{showImagePreview("Reflection Probe #"+probe.index,"",`Insufficient pixel data (${pixelsAvailable} B). Need 196608 (256²) or 49152 (128²) for 6 faces.`);return;}
+  const srcLen=6*faceStride;
+  if(!probeRaw||probeRaw.byteLength<pixOff+srcLen){showImagePreview("Reflection Probe","","Not enough data for 6 cubemap faces.");return;}
+  const isPlaceholderData=looksLikePlaceholderOrVolumeData(probeRaw,pixOff,Math.min(512,pixelsAvailable));
+  const drawWaWPlaceholder=isWaW;
+  if(!isT5&&!isT6&&!drawWaWPlaceholder&&isPlaceholderData){
+    showImagePreview("Reflection Probe #"+probe.index,"","Pixel data appears to be placeholder or volume data (COD2/WaW cod2map format). Real reflection images are only in IW3/IW4/IW5 baked BSPs.");
+    return;
+  }
+  let faces;
+  let usePlaceholderFmt=drawWaWPlaceholder;
+  if(drawWaWPlaceholder){
+    faces=createPlaceholderCubemapFaces(faceW);
+  }else{
+    const src=new Uint8Array(probeRaw.buffer,probeRaw.byteOffset+pixOff,srcLen);
+    const flipBlockY=isT6;
+    faces=[];
+    for(let f=0;f<6;f++)faces.push(decompressDXT1Face(src,f*faceStride,faceSize,faceW,flipBlockY));
+  }
+  const CUBE_FACE_ORDER=["+X","-X","+Y","-Y","+Z","-Z"];
+  const outW=faceW*4,outH=faceW*3;
+  const out=new ImageData(outW,outH);
+  for(let y=0;y<outH;y++)for(let x=0;x<outW;x++)out.data[(y*outW+x)*4+3]=0;
+  function blitFace(img,dx,dy){for(let y=0;y<faceW;y++)for(let x=0;x<faceW;x++){const si=(y*faceW+x)*4,di=((dy+y)*outW+dx+x)*4;out.data[di]=img.data[si];out.data[di+1]=img.data[si+1];out.data[di+2]=img.data[si+2];out.data[di+3]=255;}}
+  blitFace(faces[2],faceW,0);
+  blitFace(faces[0],faceW*2,faceW);
+  blitFace(faces[4],faceW,faceW);
+  blitFace(faces[5],faceW*3,faceW);
+  blitFace(faces[1],0,faceW);
+  blitFace(faces[3],faceW,faceW*2);
+  const fmt=usePlaceholderFmt?"WaW (placeholder)":probe.pixelsOffset===76?"IW3/IW4/IW5":"T5/T6";
+  const probeLabel=mapData.reflectionProbes.length>1?` Probe #${probe.index}`:"";
+  const infoExtra=usePlaceholderFmt?" No baked pixels (cod2map format).":"";
+  showImagePreview("Reflection Probe"+probeLabel+" (cubemap)",out,`6 faces stitched: +Y top, -X left, +Z center, +X right, -Z right2, -Y bottom. ${faceW}×${faceW}. ${fmt}.${infoExtra}`,"reflection_probe_"+probe.index+"_cubemap");
+}
+
+function showReflectionProbePreviewWithSelector(){
+  if(!mapData||!mapData.reflectionProbes||mapData.reflectionProbes.length===0){showReflectionProbePreview(0);return;}
+  showReflectionProbePreview(0);
+  if(mapData.reflectionProbes.length>1){
+    const sel=document.createElement("select");
+    sel.id="probeSelect";
+    for(let i=0;i<mapData.reflectionProbes.length;i++)sel.appendChild(new Option("Probe #"+i,i));
+    sel.style.marginBottom="8px";
+    const infoEl=document.getElementById("imagePreviewInfo");
+    sel.onchange=()=>{showReflectionProbePreview(parseInt(sel.value,10));infoEl.parentElement.insertBefore(sel,infoEl);};
+    infoEl.parentElement.insertBefore(sel,infoEl);
+  }
+}
+
+function getLumpDataForMap(map,lumpType){
+  if(!map.chunks)return null;
+  const idx=map.chunks.findIndex(c=>c.type===lumpType);
+  if(idx<0)return null;
+  const file=map._rawBuffer;
+  if(!file)return null;
+  let off=12+map.chunks.length*8;
+  for(let i=0;i<idx;i++){
+    const len=map.chunks[i].len||0;
+    off+=(len+3)&~3;
+  }
+  const len=map.chunks[idx].len||0;
+  return new Uint8Array(file,off,len);
+}
 document.getElementById("colorsModal").addEventListener("click",e=>{if(e.target.id==="colorsModal")e.target.classList.remove("visible");});
 document.getElementById("bspInfoModal").addEventListener("click",e=>{if(e.target.id==="bspInfoModal")e.target.classList.remove("visible");});
+document.getElementById("imagePreviewModal").addEventListener("click",e=>{if(e.target.id==="imagePreviewModal")e.target.classList.remove("visible");});
 document.getElementById("btnTeleportSpawn").addEventListener("click",()=>{
   if(mapData){
     cam=[...mapData.startPos];
@@ -2290,18 +2754,22 @@ function updateCollStats(){
   const gfx=mapData.gfxCullGroups;
   const gfxTrees=mapData.gfxAabbTrees;
   const mc=mapData.masterCells,oc=mapData.outdoorCells;
+  let txt="";
   if(src==="gfx"&&gfx){
-    el.textContent=`Gfx: ${gfx.length} CullGroups${mc?.length?`\nMaster: ${mc.length}`:""}${oc?.length?` Outdoor: ${oc.length}`:""}${mapData.portals?.length?` Portals: ${mapData.portals.length}`:""}`;
+    txt=`Gfx: ${gfx.length} CullGroups${mc?.length?`\nMaster: ${mc.length}`:""}${oc?.length?` Outdoor: ${oc.length}`:""}${mapData.portals?.length?` Portals: ${mapData.portals.length}`:""}`;
   }else if(src==="gfxAabbTrees"&&gfxTrees){
-    el.textContent=`Gfx: ${gfxTrees.length} AabbTrees${mc?.length?`\nMaster: ${mc.length}`:""}${oc?.length?` Outdoor: ${oc.length}`:""}${mapData.portals?.length?` Portals: ${mapData.portals.length}`:""}`;
+    txt=`Gfx: ${gfxTrees.length} AabbTrees${mc?.length?`\nMaster: ${mc.length}`:""}${oc?.length?` Outdoor: ${oc.length}`:""}${mapData.portals?.length?` Portals: ${mapData.portals.length}`:""}`;
   }else if(cm){
     const nv=cm.verts?.length||0,nt=cm.collisionTrisFromMap?.length||0,np=cm.partitions?.length||0,na=cm.aabbs?.length||0;
-    el.textContent=`Map: ${nv} verts, ${nt} tris\n${np} partitions, ${na} AABBs\nRoots: ${(cm.rootAabbIndices||[]).length}${mc?.length?`\nMaster: ${mc.length}`:""}${oc?.length?` Outdoor: ${oc.length}`:""}${mapData.portals?.length?` Portals: ${mapData.portals.length}`:""}`;
+    txt=`Map: ${nv} verts, ${nt} tris\n${np} partitions, ${na} AABBs\nRoots: ${(cm.rootAabbIndices||[]).length}${mc?.length?`\nMaster: ${mc.length}`:""}${oc?.length?` Outdoor: ${oc.length}`:""}${mapData.portals?.length?` Portals: ${mapData.portals.length}`:""}`;
   }else if(ct){
-    el.textContent=`Fallback: ${ct.length} tris\n(from render geometry)`;
+    txt=`Fallback: ${ct.length} tris\n(from render geometry)`;
   }else{
-    el.textContent="No collision data";
+    txt="No collision data";
   }
+  const nRopes=mapData.ropePairs?.length||0;
+  if(nRopes>0)txt+=`\nRopes: ${nRopes}`;
+  el.textContent=txt;
 }
 
 // Resize
@@ -2345,6 +2813,7 @@ document.addEventListener("keydown",e=>{
   if(e.code==="Escape"){
     if(document.getElementById("bspInfoModal").classList.contains("visible"))document.getElementById("bspInfoModal").classList.remove("visible");
     else if(document.getElementById("colorsModal").classList.contains("visible"))document.getElementById("colorsModal").classList.remove("visible");
+    else if(document.getElementById("imagePreviewModal").classList.contains("visible"))document.getElementById("imagePreviewModal").classList.remove("visible");
     else if(pointerLocked)document.exitPointerLock();
   }
 });
@@ -2373,9 +2842,12 @@ function showBspInfo(){
     html+='</td></tr>';
   }
   if(mapData.primaryLights&&mapData.primaryLights.length)html+='<tr><th>Primary Lights</th><td>'+mapData.primaryLights.length+'</td></tr>';
+  if(mapData.reflectionProbes&&mapData.reflectionProbes.length)html+='<tr><th>Reflection Probes</th><td>'+mapData.reflectionProbes.length+' (LUMP 0x29). Enable Show reflection probes to view.</td></tr>';
   const nBrushTriggers=mapData.triggerTris?mapData.triggerTris.length:0;
   const nEntTriggers=mapData.previewEnts?mapData.previewEnts.filter(e=>((e.classname||"").toLowerCase().includes("trigger"))).length:0;
   if(nBrushTriggers>0||nEntTriggers>0)html+='<tr><th>Triggers</th><td>'+nBrushTriggers+' brush tris, '+nEntTriggers+' entities. Enable Debug Mode → Map triggers to view.</td></tr>';
+  const nRopes=mapData.ropePairs?.length||0;
+  if(nRopes>0)html+='<tr><th>Ropes</th><td>'+nRopes+' (classname rope/info_rope). Enable Debug Mode → Show ropes to view.</td></tr>';
   html+='</table></div>';
   const hasLightBytes=chunks.some(c=>c.type===0x01);
   const hasLightGrid=chunks.some(c=>[0x02,0x03,0x2C,0x2D].includes(c.type));
@@ -2385,6 +2857,13 @@ function showBspInfo(){
   html+='<tr><td>LUMP_PRIMARY_LIGHTS (0x2B)</td><td>'+((mapData.primaryLights&&mapData.primaryLights.length)||0)+' (not applied to geometry)</td></tr>';
   html+='<tr><td>LUMP_LIGHTBYTES (0x01)</td><td>'+(hasLightBytes?'Present (not sampled; vertex colors used)':'Absent')+'</td></tr>';
   html+='<tr><td>LUMP_LIGHTGRID (0x02,0x03,0x2C,0x2D)</td><td>'+(hasLightGrid?'Present (baked into vertex colors)':'Absent')+'</td></tr>';
+  const hasSimpleLmap=chunks.some(c=>c.type===0x3A);
+  const hasLightUncomp=chunks.some(c=>c.type===0x0E);
+  html+='<tr><td>LUMP_SIMPLELIGHTMAPBYTES (0x3A)</td><td>'+(hasSimpleLmap?'Present':'Absent')+'</td></tr>';
+  html+='<tr><td>LUMP_LIGHTBYTES_UNCOMPRESSED (0x0E)</td><td>'+(hasLightUncomp?'Present (T6)':'Absent')+'</td></tr>';
+  html+='<tr><td>Lightmap preview</td><td>'+(getLightmapSource(mapData)?'Available — use Preview Lightmap button (experimental)':'Not available (no 0x3A, 0x0E, or raw 0x01)')+'</td></tr>';
+  const hasProbes=chunks.some(c=>c.type===0x29);
+  html+='<tr><td>LUMP_REFLECTION_PROBES (0x29)</td><td>'+(hasProbes?'Present — use Preview Reflection Probe button (experimental)':'Absent')+'</td></tr>';
   html+='</table></div>';
   const cm=mapData.collisionMap;
   const cg0=chunks.find(c=>c.type===0x0C),cg32=chunks.find(c=>c.type===0x32);
@@ -2419,7 +2898,7 @@ function showBspInfo(){
   document.getElementById("bspInfoModal").classList.add("visible");
 }
 
-const DEBUG_COLOR_LABELS={targetLines:"Target lines",triggers:"Map triggers",portals:"Portals",masterCells:"Master/Outdoor cells",collisionMesh:"Collision mesh",aabbTree:"AABB tree",pathnodeMarkers:"Pathnode markers",pathnodeConnections:"Pathnode connections",wireframe:"Wireframe"};
+const DEBUG_COLOR_LABELS={targetLines:"Target lines",triggers:"Map triggers",portals:"Portals",masterCells:"Master/Outdoor cells",collisionMesh:"Collision mesh",aabbTree:"AABB tree",pathnodeMarkers:"Pathnode markers",pathnodeConnections:"Pathnode connections",wireframe:"Wireframe",ropes:"Ropes"};
 function showColorsModal(){
   const body=document.getElementById("colorsBody");
   let html="";
@@ -2453,7 +2932,9 @@ function loadFile(file){
   const reader=new FileReader();
   reader.onload=()=>{
     try{
-      mapData=parseD3DBSP(reader.result);
+      const buf=reader.result;
+      mapData=parseD3DBSP(buf);
+      mapData._rawBuffer=buf;
       uploadMesh(mapData.vbo);
       cam=[...mapData.startPos];
       yaw=mapData.startYaw||0;
@@ -2462,6 +2943,10 @@ function loadFile(file){
       loadingEl.classList.add("hidden");
       document.getElementById("btnBspInfo").style.display="block";
       document.getElementById("btnColors").style.display="block";
+      document.getElementById("btnPreviewLightmap").style.display=getLightmapSource(mapData)?"block":"none";
+      const hasReflProbes=(mapData.reflectionProbes&&mapData.reflectionProbes.length)>0;
+      const hasReflLump=mapData.chunks&&mapData.chunks.some(c=>c.type===0x29&&(c.len||0)>0);
+      document.getElementById("btnPreviewReflectionProbe").style.display=(hasReflProbes||hasReflLump)?"block":"none";
       document.getElementById("btnOpenBsp").style.display="block";
       document.getElementById("btnTeleportSpawn").style.display="block";
       document.getElementById("btnTeleportOrigin").style.display="block";
@@ -2513,17 +2998,21 @@ function frame(now){
     const{fwd,right,up}=angleVectors(yaw,pitch);
     let speed=getF("sSpeed");
     const forceTris=getB("sForceTris");
-    const collTris=forceTris?(mapData.collisionMap?.collisionTrisFromMap||mapData.collisionTris):null;
+    const trisFallback=mapData.collisionMap?.collisionTrisFromMap||mapData.collisionTris;
+    const collTris=forceTris?trisFallback:(mapData.collisionMap?null:trisFallback);
     const collMap=!forceTris?mapData.collisionMap:null;
-    const coll=collMap||collTris;
+    const supplement=mapData.collisionTrisSupplement||null;
+    const coll=collMap||collTris||supplement;
     const playerMode=getB("sPlayer")&&mapData&&coll;
     if(playerMode){
-      speed=Math.min(speed,400);
-      if(keys["ShiftLeft"]||keys["ShiftRight"])speed*=1.5;
-      const d=speed*dt;
+      const baseSpeed=Math.min(Math.max(getF("sSpeed")||WALK_SPEED,50),400);
+      const moveSpeed=keys["ShiftLeft"]||keys["ShiftRight"]?baseSpeed*SPRINT_MULT:baseSpeed;
+      const d=moveSpeed*dt;
       const feetY=cam[1]-PLAYER_EYE;
-      const floorY=collMap?traceFloorCollMap(collMap,cam[0],feetY,cam[2],500,4):traceFloor(collTris,cam[0],feetY,cam[2],500,4);
-      const onGround=floorY!==null&&feetY<=floorY+8;
+      const floorYMain=collMap?traceFloorCollMap(collMap,cam[0],feetY,cam[2],500,4):(collTris?traceFloor(collTris,cam[0],feetY,cam[2],500,4):null);
+      const floorYSupp=supplement?traceFloor(supplement,cam[0],feetY,cam[2],500,4):null;
+      const floorY=floorYMain!==null&&floorYSupp!==null?Math.max(floorYMain,floorYSupp):(floorYMain??floorYSupp);
+      const onGround=floorY!==null&&feetY<=floorY+10;
       let wishX=0,wishZ=0;
       if(keys["KeyW"]){wishX+=fwd[0];wishZ+=fwd[2];}
       if(keys["KeyS"]){wishX-=fwd[0];wishZ-=fwd[2];}
@@ -2531,20 +3020,28 @@ function frame(now){
       if(keys["KeyD"]){wishX+=right[0];wishZ+=right[2];}
       const len=Math.sqrt(wishX*wishX+wishZ*wishZ);
       if(len>1e-6){wishX/=len;wishZ/=len;}
-      let newX=cam[0]+wishX*d,newZ=cam[2]+wishZ*d;
-      const testY=onGround?floorY:cam[1]-PLAYER_EYE;
-      const sphereTest=collMap?(x,y,z)=>sphereCollidesCollMap(collMap,x,y,z,PLAYER_RADIUS):(x,y,z)=>sphereCollides(collTris,x,y,z,PLAYER_RADIUS);
-      if(!sphereTest(newX,testY,newZ)){cam[0]=newX;cam[2]=newZ;}
-      else{
-        if(!sphereTest(newX,cam[1],cam[2])){cam[0]=newX;}
-        else if(!sphereTest(cam[0],cam[1],newZ)){cam[2]=newZ;}
+      const dx=wishX*d,dz=wishZ*d;
+      const currentFeetY=onGround?floorY:feetY;
+      let res=slideMoveCapsule(collMap,collTris,supplement,cam[0],currentFeetY,cam[2],dx,dz);
+      if(!res.ok&&onGround&&(Math.abs(dx)>1e-6||Math.abs(dz)>1e-6)){
+        const stepUpY=currentFeetY+STEP_HEIGHT;
+        const stepRes=slideMoveCapsule(collMap,collTris,supplement,cam[0],stepUpY,cam[2],dx,dz);
+        if(stepRes.ok){
+          const landMain=collMap?traceFloorCollMap(collMap,stepRes.x,stepUpY,stepRes.z,STEP_HEIGHT+20,4):(collTris?traceFloor(collTris,stepRes.x,stepUpY,stepRes.z,STEP_HEIGHT+20,4):null);
+          const landSupp=supplement?traceFloor(supplement,stepRes.x,stepUpY,stepRes.z,STEP_HEIGHT+20,4):null;
+          const landFloor=landMain!==null&&landSupp!==null?Math.max(landMain,landSupp):(landMain??landSupp);
+          if(landFloor!==null&&landFloor<=stepUpY+2){res={ok:true,x:stepRes.x,z:stepRes.z};cam[1]=landFloor+PLAYER_EYE;}
+        }
       }
-      if(keys["Space"]&&onGround)playerVelY=320;
+      if(res.ok){cam[0]=res.x;cam[2]=res.z;}
+      if(keys["Space"]&&onGround)playerVelY=JUMP_VEL;
       if(onGround){cam[1]=floorY+PLAYER_EYE;playerVelY=0;}
       else{
         cam[1]+=playerVelY*dt;
         playerVelY-=GRAVITY*dt;
-        const landFloor=collMap?traceFloorCollMap(collMap,cam[0],cam[1],cam[2],200,4):traceFloor(collTris,cam[0],cam[1],cam[2],200,4);
+        const landMain=collMap?traceFloorCollMap(collMap,cam[0],cam[1],cam[2],200,4):(collTris?traceFloor(collTris,cam[0],cam[1],cam[2],200,4):null);
+        const landSupp=supplement?traceFloor(supplement,cam[0],cam[1],cam[2],200,4):null;
+        const landFloor=landMain!==null&&landSupp!==null?Math.max(landMain,landSupp):(landMain??landSupp);
         if(landFloor!==null&&cam[1]-PLAYER_EYE<landFloor+2){cam[1]=landFloor+PLAYER_EYE;playerVelY=0;}
       }
     }else{
@@ -2644,7 +3141,7 @@ function frame(now){
   }
 
   // Entity preview overlay
-  const anyEntityPreview=getB("sActors")||getB("sLights")||getB("sScriptStructs")||getB("sScriptOrigins")||getB("sLightingInfo")||getB("sAllTypes")||getB("sShowTriggers");
+  const anyEntityPreview=getB("sActors")||getB("sLights")||getB("sScriptStructs")||getB("sScriptOrigins")||getB("sLightingInfo")||getB("sReflectionProbes")||getB("sAllTypes")||getB("sShowTriggers");
   if(mapData&&anyEntityPreview){
     if(entityPreviewDirty){buildEntityPreviewLines(mapData);entityPreviewDirty=false;}
     if(entityLineCount>0&&lineProg){
@@ -2680,7 +3177,7 @@ function frame(now){
 
   // Collision debug overlay
   const anyMatOn=getB("sShowMaterialOptions")&&(getB("sShowClip")||getB("sShowNodraw")||getB("sShowNosight")||getB("sShowLightportal")||getB("sShowLightgrid")||getB("sShowLightgridSky")||getB("sShowTriggerMat")||getB("sShowSpawnerTrigger")||getB("sShowShadowcaulk")||getB("sShowMantle")||getB("sShowMine")||getB("sShowTraverse")||getB("sShowUndertow")||getB("sShowPortal")||getB("sShowKill")||getB("sShowGoal")||getB("sShowHint")||getB("sShowFog")||getB("sShowAitrig")||getB("sShowExposure")||getB("sShowReflection")||getB("sShowVolume")||getB("sShowCaulk")||getB("sShowShadowcaster")||getB("sShowTriggers"));
-  if(mapData&&(getB("sDrawCollMesh")||getB("sDrawAabb")||getB("sShowMasterCells")||getB("sShowOutdoorCells")||getB("sShowPortals")||getB("sShowTargetLines")||getB("sShowTriggers")||anyMatOn)){
+  if(mapData&&(getB("sDrawCollMesh")||getB("sDrawAabb")||getB("sShowMasterCells")||getB("sShowOutdoorCells")||getB("sShowPortals")||getB("sShowTargetLines")||getB("sShowTriggers")||getB("sShowRopes")||anyMatOn)){
     if(collDebugDirty){buildCollisionDebugLines(mapData);collDebugDirty=false;}
     if(lineCount>0&&lineProg){
       gl.useProgram(lineProg);
