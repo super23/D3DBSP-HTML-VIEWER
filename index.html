@@ -263,7 +263,9 @@ function gameNameFromVersionAndChunks(ver,chunks){
   if(ver<=22)return"IW3/IW4";if(ver<=31)return"WaW";
   if(ver===45){
     const types=new Set((chunks||[]).map(c=>c.type));
-    if(types.has(0x3A)||types.has(0x37)||types.has(0x4C)||types.has(0x34))return"T5/BO1";
+    // T5-only lumps: 0x37 BurnableHeader, 0x4C OutdoorBounds, 0x34 WaterHeader.
+    // Do NOT use 0x3A (SimpleLightmapBytes) - IW5/MW3 also has it.
+    if(types.has(0x37)||types.has(0x4C)||types.has(0x34))return"T5/BO1";
     return"IW5";
   }
   if(ver<=62)return"T6/BO2";
