@@ -157,7 +157,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
         <div class="group-title" style="margin-top:4px;font-size:10px;color:#777">AABB / Collision</div>
         <label><span>Collision mesh</span><input type="checkbox" id="sDrawCollMesh" title="Wireframe overlay of collision triangles"></label>
         <label><span>AABB tree</span><input type="checkbox" id="sDrawAabb" title="Wireframe AABB boxes"></label>
-        <label><span>AABB source</span><select id="sAabbSource" title="Collision: physics AABB tree. Gfx AabbTrees: render culling tree from CullGroups."></select></label>
+        <label><span>AABB source</span><select id="sAabbSource" title="Collision (0x24): physics tree, 32B/node. Gfx (0x0C/0x32): flat CullGroups. Gfx AabbTrees (0x18): render tree, 12B/node, bounds from surfaces."></select></label>
         <div class="group-title" style="margin-top:8px;font-size:10px;color:#777">Cells</div>
         <label><span>Master Cells</span><input type="checkbox" id="sShowMasterCells" title="Wireframe boxes for BSP master/portal cells (visibility zones)"></label>
         <label><span>Outdoor Cells</span><input type="checkbox" id="sShowOutdoorCells" title="Wireframe boxes for outdoor bounds (T5/T6)"></label>
@@ -2386,6 +2386,25 @@ function showBspInfo(){
   html+='<tr><td>LUMP_LIGHTBYTES (0x01)</td><td>'+(hasLightBytes?'Present (not sampled; vertex colors used)':'Absent')+'</td></tr>';
   html+='<tr><td>LUMP_LIGHTGRID (0x02,0x03,0x2C,0x2D)</td><td>'+(hasLightGrid?'Present (baked into vertex colors)':'Absent')+'</td></tr>';
   html+='</table></div>';
+  const cm=mapData.collisionMap;
+  const cg0=chunks.find(c=>c.type===0x0C),cg32=chunks.find(c=>c.type===0x32);
+  const collAabb=chunks.find(c=>c.type===0x24),aabbTrees=chunks.find(c=>c.type===0x18);
+  const nCollAabb=cm?.aabbs?.length||0,nRoots=(cm?.rootAabbIndices||[]).length;
+  const nCullGroups=mapData.gfxCullGroups?.length||(cg0?Math.floor((cg0.len||0)/32):0)||(cg32?Math.floor((cg32.len||0)/32):0);
+  const nAabbTrees=mapData.gfxAabbTrees?.length||(aabbTrees?Math.floor((aabbTrees.len||0)/12):0);
+  html+='<div class="section"><div class="section-title">AABB Trees (3 types)</div>';
+  html+='<table><tr><th>Type</th><th>Lump</th><th>Count</th><th>Stride</th><th>Purpose</th></tr>';
+  const nCollVerts=cm?.verts?.length||0,nCollTris=cm?.collisionTrisFromMap?.length||0,nPart=cm?.partitions?.length||0;
+  html+='<tr><td><strong>Collision</strong></td><td class="mono">0x24 CollisionAabbs</td><td>'+(nCollAabb||'—')+(nCollAabb&&nRoots?' nodes<br>'+nRoots+' roots':'')+(nCollVerts?'<br>'+nCollVerts+' verts, '+nCollTris+' tris':'')+(nPart?'<br>'+nPart+' partitions':'')+'</td><td>32 B</td><td>Physics collision. Hierarchical tree. Root indices from Models lump (firstCollAabbIndex, collAabbCount).</td></tr>';
+  html+='<tr><td><strong>Gfx CullGroups</strong></td><td class="mono">0x0C / 0x32</td><td>'+(nCullGroups||'—')+'</td><td>32 B</td><td>Render culling. Flat list of AABBs (mins/maxs). Groups surfaces for visibility.</td></tr>';
+  const nAabbTreeNodes=aabbTrees?Math.floor((aabbTrees.len||0)/12):0;
+  const nAabbTreeBoxes=mapData.gfxAabbTrees?.length||0;
+  html+='<tr><td><strong>Gfx AabbTrees</strong></td><td class="mono">0x18 AabbTrees</td><td>'+(nAabbTreeNodes||'—')+(nAabbTreeBoxes?'<br>'+nAabbTreeBoxes+' drawn':'')+'</td><td>12 B</td><td>Render culling. Hierarchical tree. No bounds on disk — viewer computes from surface geometry.</td></tr>';
+  html+='</table><div style="margin-top:8px;font-size:11px;color:#888;line-height:1.5">';
+  html+='<strong>1. Collision (LUMP 0x24):</strong> 32 bytes/node. Layout: origin[3] (0–11), halfSize[3] (12–23), childCount (24–25), firstChildIndex (26–29). BSP coords (x,z,y→viewer x,y,z). Root indices from Models lump (firstCollAabbIndex, collAabbCount). Related: 0x1F CollisionVerts, 0x20 CollisionTris, 0x23 CollisionPartitions.<br>';
+  html+='<strong>2. CullGroups (LUMP 0x0C or 0x32):</strong> 32 bytes/box. Layout: mins[3] (0–11), maxs[3] (12–23). Flat list, no hierarchy. Viewer uses 0x0C CullGroups or 0x32 UnlayeredCullGroups (whichever has more).<br>';
+  html+='<strong>3. AabbTrees (LUMP 0x18):</strong> 12 bytes/node. Layout: firstSurf (0–3), surfCount (4–7), childCount (8–11). No bounds on disk. Children at idx+1, idx+2, … (implicit). Bounds computed from Triangles (0x09) + DrawVerts (0x0A). Used when CullGroups empty (BO2/T6).';
+  html+='</div></div>';
   html+='<div class="section"><div class="section-title">Lumps ('+chunks.length+')</div><div style="max-height:280px;overflow-y:auto"><table><tr><th>#</th><th>Type</th><th>Name</th><th>Size</th></tr>';
   let totalSize=0;
   for(let i=0;i<chunks.length;i++){
