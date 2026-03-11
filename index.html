@@ -164,9 +164,10 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
         <label><span>AABB tree</span><input type="checkbox" id="sDrawAabb" title="Wireframe AABB boxes"></label>
         <label><span>AABB source</span><select id="sAabbSource" title="Collision (0x24): physics tree, 32B/node. Gfx (0x0C/0x32): flat CullGroups. Gfx AabbTrees (0x18): render tree, 12B/node, bounds from surfaces."></select></label>
         <div class="group-title" style="margin-top:8px;font-size:10px;color:#777">Cells</div>
-        <label><span>Master Cells</span><input type="checkbox" id="sShowMasterCells" title="Wireframe boxes for BSP master/portal cells (visibility zones)"></label>
-        <label><span>Outdoor Cells</span><input type="checkbox" id="sShowOutdoorCells" title="Wireframe boxes for outdoor bounds (T5/T6)"></label>
-        <label><span>Show portals</span><input type="checkbox" id="sShowPortals" title="Wireframe polygons for visibility portals between cells"></label>
+        <label><span>Master Cells</span><input type="checkbox" id="sShowMasterCells" title="Boxes for BSP master/portal cells (visibility zones)"></label>
+        <label><span>Outdoor Cells</span><input type="checkbox" id="sShowOutdoorCells" title="Boxes for outdoor bounds (T5/T6)"></label>
+        <label><span>Show portals</span><input type="checkbox" id="sShowPortals" title="Polygons for visibility portals between cells"></label>
+        <label><span>Shade cells/portals</span><input type="checkbox" id="sShadeCellsPortals" checked title="Fill cells and portals with shaded color (disable for wireframe only)"></label>
         <div class="group-title" style="margin-top:8px;font-size:10px;color:#777">Entity Links</div>
         <label><span>Target lines</span><input type="checkbox" id="sShowTargetLines" title="Lines from entity target to targetname (script/entity links)"></label>
         <label><span>Show ropes</span><input type="checkbox" id="sShowRopes" title="Rope entities (classname rope/info_rope): line from origin to target entity"></label>
@@ -1626,6 +1627,7 @@ function parseD3DBSP(buf){
 const canvas=document.getElementById("gl");
 let gl,prog,uMVP,uSun,uAmb,uUseMapLighting,uUseLightingOnly,uSunBoost,uWorldspawnTint,uMapExposure,uMapGamma,uAmbientFloor,vao,gpuBuf,mapData=null;
 let lineProg,lineMVP,lineCol,lineVao,lineBuf,lineCount=0;
+let debugTriProg,debugTriMVP,debugTriSun,debugTriAmb,cellTriVao=null,cellTriBuf=null,cellTriCount=0;
 let pathnodeLineVao=null,pathnodeLineBuf=null,pathnodeLineCount=0;
 let pathnodeDebugDirty=true;
 let entityLineVao=null,entityLineBuf=null,entityLineCount=0;
@@ -1727,6 +1729,33 @@ void main(){o=vec4(v_col,1.0);}`);
   gl.linkProgram(lineProg);
   if(!gl.getProgramParameter(lineProg,gl.LINK_STATUS)){console.error(gl.getProgramInfoLog(lineProg));return false;}
   lineMVP=gl.getUniformLocation(lineProg,"u_mvp");
+  const triVS=sh(gl.VERTEX_SHADER,`#version 300 es
+layout(location=0)in vec3 a_pos;
+layout(location=1)in vec3 a_col;
+layout(location=2)in vec3 a_norm;
+out vec3 v_col;
+out vec3 v_norm;
+uniform mat4 u_mvp;
+void main(){gl_Position=u_mvp*vec4(a_pos,1.0);v_col=a_col;v_norm=a_norm;}`);
+  const triFS=sh(gl.FRAGMENT_SHADER,`#version 300 es
+precision mediump float;
+in vec3 v_col;
+in vec3 v_norm;
+out vec4 o;
+uniform vec3 u_sun;
+uniform float u_amb;
+void main(){
+  float sunDot=max(dot(normalize(v_norm),u_sun),0.0);
+  float l=u_amb+(1.0-u_amb)*sunDot;
+  o=vec4(v_col*l,0.5);
+}`);
+  debugTriProg=gl.createProgram();
+  gl.attachShader(debugTriProg,triVS);gl.attachShader(debugTriProg,triFS);
+  gl.linkProgram(debugTriProg);
+  if(!gl.getProgramParameter(debugTriProg,gl.LINK_STATUS)){console.error(gl.getProgramInfoLog(debugTriProg));return false;}
+  debugTriMVP=gl.getUniformLocation(debugTriProg,"u_mvp");
+  debugTriSun=gl.getUniformLocation(debugTriProg,"u_sun");
+  debugTriAmb=gl.getUniformLocation(debugTriProg,"u_amb");
   return true;
 }
 
@@ -1762,8 +1791,14 @@ function buildArrowHeadLines(a,b,col,arrowLen=20){
   return[b[0],b[1],b[2],col[0],col[1],col[2],left[0],left[1],left[2],col[0],col[1],col[2],b[0],b[1],b[2],col[0],col[1],col[2],right[0],right[1],right[2],col[0],col[1],col[2]];
 }
 
+function pushBoxFaceTris(tris,col,norm,v0,v1,v2,v3){
+  const [r,g,b]=col,[nx,ny,nz]=norm;
+  tris.push(v0[0],v0[1],v0[2],r,g,b,nx,ny,nz, v1[0],v1[1],v1[2],r,g,b,nx,ny,nz, v2[0],v2[1],v2[2],r,g,b,nx,ny,nz);
+  tris.push(v0[0],v0[1],v0[2],r,g,b,nx,ny,nz, v2[0],v2[1],v2[2],r,g,b,nx,ny,nz, v3[0],v3[1],v3[2],r,g,b,nx,ny,nz);
+}
 function buildCollisionDebugLines(map){
   const lines=[];
+  const cellTris=[];
   const green=getDebugColor("collisionMesh"),cyan=getDebugColor("aabbTree");
   const tris=map.collisionMap?.collisionTrisFromMap||map.collisionTris;
   if(tris&&getB("sDrawCollMesh")){
@@ -1798,6 +1833,14 @@ function buildCollisionDebugLines(map){
       const v001=[mx[0],mx[1],Mx[2]],v101=[Mx[0],mx[1],Mx[2]],v011=[mx[0],Mx[1],Mx[2]],v111=[Mx[0],Mx[1],Mx[2]];
       const edges=[[v000,v100],[v100,v110],[v110,v010],[v010,v000],[v001,v101],[v101,v111],[v111,v011],[v011,v001],[v000,v001],[v100,v101],[v110,v111],[v010,v011]];
       for(const e of edges)lines.push(e[0][0],e[0][1],e[0][2],cellGreen[0],cellGreen[1],cellGreen[2],e[1][0],e[1][1],e[1][2],cellGreen[0],cellGreen[1],cellGreen[2]);
+      if(getB("sShadeCellsPortals")){
+        pushBoxFaceTris(cellTris,cellGreen,[-1,0,0],v000,v001,v011,v010);
+        pushBoxFaceTris(cellTris,cellGreen,[1,0,0],v100,v110,v111,v101);
+        pushBoxFaceTris(cellTris,cellGreen,[0,-1,0],v000,v100,v101,v001);
+        pushBoxFaceTris(cellTris,cellGreen,[0,1,0],v010,v011,v111,v110);
+        pushBoxFaceTris(cellTris,cellGreen,[0,0,-1],v000,v010,v110,v100);
+        pushBoxFaceTris(cellTris,cellGreen,[0,0,1],v001,v101,v111,v011);
+      }
     }
   }
   if(map.outdoorCells&&getB("sShowOutdoorCells")){
@@ -1808,6 +1851,14 @@ function buildCollisionDebugLines(map){
       const v001=[mx[0],mx[1],Mx[2]],v101=[Mx[0],mx[1],Mx[2]],v011=[mx[0],Mx[1],Mx[2]],v111=[Mx[0],Mx[1],Mx[2]];
       const edges=[[v000,v100],[v100,v110],[v110,v010],[v010,v000],[v001,v101],[v101,v111],[v111,v011],[v011,v001],[v000,v001],[v100,v101],[v110,v111],[v010,v011]];
       for(const e of edges)lines.push(e[0][0],e[0][1],e[0][2],cellGreen[0],cellGreen[1],cellGreen[2],e[1][0],e[1][1],e[1][2],cellGreen[0],cellGreen[1],cellGreen[2]);
+      if(getB("sShadeCellsPortals")){
+        pushBoxFaceTris(cellTris,cellGreen,[-1,0,0],v000,v001,v011,v010);
+        pushBoxFaceTris(cellTris,cellGreen,[1,0,0],v100,v110,v111,v101);
+        pushBoxFaceTris(cellTris,cellGreen,[0,-1,0],v000,v100,v101,v001);
+        pushBoxFaceTris(cellTris,cellGreen,[0,1,0],v010,v011,v111,v110);
+        pushBoxFaceTris(cellTris,cellGreen,[0,0,-1],v000,v010,v110,v100);
+        pushBoxFaceTris(cellTris,cellGreen,[0,0,1],v001,v101,v111,v011);
+      }
     }
   }
   const portalColor=getDebugColor("portals");
@@ -1818,6 +1869,23 @@ function buildCollisionDebugLines(map){
       for(let i=0;i<verts.length;i++){
         const a=verts[i],b=verts[(i+1)%verts.length];
         lines.push(a[0],a[1],a[2],portalColor[0],portalColor[1],portalColor[2],b[0],b[1],b[2],portalColor[0],portalColor[1],portalColor[2]);
+      }
+      const v0=verts[0],v1=verts[1];
+      let nx=0,ny=0,nz=0;
+      for(let i=2;i<verts.length;i++){
+        const v2=verts[i];
+        const ax=v1[0]-v0[0],ay=v1[1]-v0[1],az=v1[2]-v0[2];
+        const bx=v2[0]-v0[0],by=v2[1]-v0[1],bz=v2[2]-v0[2];
+        nx+=ay*bz-az*by;ny+=az*bx-ax*bz;nz+=ax*by-ay*bx;
+      }
+      const len=Math.sqrt(nx*nx+ny*ny+nz*nz);
+      if(len>1e-6){nx/=len;ny/=len;nz/=len;}
+      else{nx=0;ny=1;nz=0;}
+      if(getB("sShadeCellsPortals")){
+        const [r,g,b]=portalColor;
+        for(let i=1;i<verts.length-1;i++){
+          cellTris.push(v0[0],v0[1],v0[2],r,g,b,nx,ny,nz, verts[i][0],verts[i][1],verts[i][2],r,g,b,nx,ny,nz, verts[i+1][0],verts[i+1][1],verts[i+1][2],r,g,b,nx,ny,nz);
+        }
       }
     }
   }
@@ -1908,6 +1976,25 @@ function buildCollisionDebugLines(map){
       lines.push(v1[0],v1[1],v1[2],col[0],col[1],col[2],v2[0],v2[1],v2[2],col[0],col[1],col[2]);
       lines.push(v2[0],v2[1],v2[2],col[0],col[1],col[2],v0[0],v0[1],v0[2],col[0],col[1],col[2]);
     }
+  }
+  if(cellTris.length>0){
+    const triArr=new Float32Array(cellTris);
+    if(cellTriVao)gl.deleteVertexArray(cellTriVao);
+    if(cellTriBuf)gl.deleteBuffer(cellTriBuf);
+    cellTriVao=gl.createVertexArray();
+    gl.bindVertexArray(cellTriVao);
+    cellTriBuf=gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,cellTriBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,triArr,gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,36,0);
+    gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,3,gl.FLOAT,false,36,12);
+    gl.enableVertexAttribArray(2);gl.vertexAttribPointer(2,3,gl.FLOAT,false,36,24);
+    gl.bindVertexArray(null);
+    cellTriCount=cellTris.length/9;
+  }else{
+    cellTriCount=0;
+    if(cellTriVao){gl.deleteVertexArray(cellTriVao);cellTriVao=null;}
+    if(cellTriBuf){gl.deleteBuffer(cellTriBuf);cellTriBuf=null;}
   }
   if(lines.length===0){lineCount=0;return;}
   const arr=new Float32Array(lines);
@@ -2371,8 +2458,9 @@ document.getElementById("sDrawCollMesh").addEventListener("change",()=>{collDebu
 document.getElementById("sDrawAabb").addEventListener("change",()=>{collDebugDirty=true;});
 document.getElementById("sAabbSource").addEventListener("change",()=>{collDebugDirty=true;if(mapData)updateCollStats();});
 document.getElementById("sShowMasterCells").addEventListener("change",()=>{collDebugDirty=true;});
-document.getElementById("sShowOutdoorCells").addEventListener("change",()=>{collDebugDirty=true;});
-document.getElementById("sShowPortals").addEventListener("change",()=>{collDebugDirty=true;});
+  document.getElementById("sShowOutdoorCells").addEventListener("change",()=>{collDebugDirty=true;});
+  document.getElementById("sShowPortals").addEventListener("change",()=>{collDebugDirty=true;});
+  document.getElementById("sShadeCellsPortals").addEventListener("change",()=>{collDebugDirty=true;});
 document.getElementById("sShowTargetLines").addEventListener("change",()=>{collDebugDirty=true;});
 document.getElementById("sShowTriggers").addEventListener("change",()=>{collDebugDirty=true;entityPreviewDirty=true;});
 document.getElementById("sShowRopes").addEventListener("change",()=>{collDebugDirty=true;if(mapData)updateCollStats();});
@@ -3181,6 +3269,22 @@ function frame(now){
   const anyMatOn=getB("sShowMaterialOptions")&&(getB("sShowClip")||getB("sShowNodraw")||getB("sShowNosight")||getB("sShowLightportal")||getB("sShowLightgrid")||getB("sShowLightgridSky")||getB("sShowTriggerMat")||getB("sShowSpawnerTrigger")||getB("sShowShadowcaulk")||getB("sShowMantle")||getB("sShowMine")||getB("sShowTraverse")||getB("sShowUndertow")||getB("sShowPortal")||getB("sShowKill")||getB("sShowGoal")||getB("sShowHint")||getB("sShowFog")||getB("sShowAitrig")||getB("sShowExposure")||getB("sShowReflection")||getB("sShowVolume")||getB("sShowCaulk")||getB("sShowShadowcaster")||getB("sShowTriggers"));
   if(mapData&&(getB("sDrawCollMesh")||getB("sDrawAabb")||getB("sShowMasterCells")||getB("sShowOutdoorCells")||getB("sShowPortals")||getB("sShowTargetLines")||getB("sShowTriggers")||getB("sShowRopes")||anyMatOn)){
     if(collDebugDirty){buildCollisionDebugLines(mapData);collDebugDirty=false;}
+    if(cellTriCount>0&&debugTriProg){
+      gl.useProgram(debugTriProg);
+      gl.uniformMatrix4fv(debugTriMVP,false,mvp);
+      gl.uniform3f(debugTriSun,sd[0],sd[1],sd[2]);
+      gl.uniform1f(debugTriAmb,amb);
+      gl.bindVertexArray(cellTriVao);
+      gl.disable(gl.CULL_FACE);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      gl.drawArrays(gl.TRIANGLES,0,cellTriCount);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+      gl.bindVertexArray(null);
+      gl.useProgram(prog);
+    }
     if(lineCount>0&&lineProg){
       gl.useProgram(lineProg);
       gl.uniformMatrix4fv(lineMVP,false,mvp);
