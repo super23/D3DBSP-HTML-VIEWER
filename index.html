@@ -2917,12 +2917,23 @@ canvas.addEventListener("wheel",e=>{
   s.value=v;document.getElementById("vSpeed").textContent=Math.round(v);
 },{passive:false});
 
+// Paste your base64 string here (Excavator Omicron - zombie_moon T5)
+const EXCAVATOR_OMICRON_BASE64="LS1TUkMtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQp2bzZuKUUqOGcja3hxMEosP15BZFh4NHh3dzM+NjVhb0U2dTNnfUdIWF9uOjBlOnlRcl4yaWc+ITF6bWk9MF4lUnouZ21NTHh5UldFRV89OWlrKjMjQW4wIzlALi5BMHJuWXVeDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLU9BVC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQpnMDduPl4sMFk0N0FdOGVmQTQ4NzRiY18pOHVeOGZSa25UekczaVlnei04LT5fSGZoOD14clBDZ2YlenRlTUwpLDJzOVQ1SlZhTUJpWktycENON0xDLngtZV9qSkZlP2pIYlFBDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0t";
+function showExcavatorOmicron(){
+  const w=window.open("","ExcavatorOmicron","width=600,height=500");
+  if(!w)return;
+  w.document.write('<html><head><title>Excavator Omicron</title><style>body{font-family:system-ui;padding:20px;background:#1a1a1a;color:#e0e0e0;}</style></head><body><h2>Moon Communications</h2><pre id="excavatorB64" style="word-break:break-all;font-size:11px;white-space:pre-wrap;"></pre></body></html>');
+  w.document.close();
+  w.document.getElementById("excavatorB64").textContent=EXCAVATOR_OMICRON_BASE64;
+}
 function showBspInfo(){
   if(!mapData){return;}
   const chunks=mapData.chunks||[];
   const game=gameNameFromVersionAndChunks(mapData.ver,chunks);
   const ident=mapData.ident!==undefined?mapData.ident:0x50534249;
   const identStr=String.fromCharCode(ident&0xff,(ident>>8)&0xff,(ident>>16)&0xff,(ident>>24)&0xff);
+  const fileName=(mapData._fileName||"").toLowerCase();
+  const isZombieMoonT5=game==="T5/BO1"&&mapData.ver===45&&fileName.includes("zombie_moon");
   let html='<div class="section"><div class="section-title">Header</div><table><tr><th>Ident</th><td class="mono">'+identStr+' (0x'+(ident>>>0).toString(16).toUpperCase()+')</td></tr><tr><th>Version</th><td>'+mapData.ver+'</td></tr><tr><th>Game</th><td>'+game+'</td></tr><tr><th>Chunks</th><td>'+chunks.length+'</td></tr></table></div>';
   html+='<div class="section"><div class="section-title">Summary</div><table><tr><th>Triangles</th><td>'+mapData.triCount.toLocaleString()+'</td></tr><tr><th>Surfaces</th><td>'+mapData.nSurfs+'</td></tr><tr><th>Vertices</th><td>'+mapData.nVerts+'</td></tr><tr><th>Indices</th><td>'+mapData.nIdx+'</td></tr><tr><th>Materials</th><td>'+mapData.matCount+'</td></tr>';
   if(mapData.pathData){
@@ -2984,6 +2995,7 @@ function showBspInfo(){
     html+='<tr><td>'+i+'</td><td class="mono">'+typeHex+'</td><td>'+(name||'-')+'</td><td>'+((c.len||0).toLocaleString())+' B</td></tr>';
   }
   html+='<tr><td colspan="3"><strong>Total</strong></td><td>'+totalSize.toLocaleString()+' B</td></tr></table></div></div>';
+  if(isZombieMoonT5)html+='<div class="section" style="margin-top:12px"><button class="btn" onclick="showExcavatorOmicron()" style="width:100%;padding:10px;font-size:14px">Excavator Omicron</button></div>';
   document.getElementById("bspInfoBody").innerHTML=html;
   document.getElementById("bspInfoModal").classList.add("visible");
 }
@@ -3025,6 +3037,7 @@ function loadFile(file){
       const buf=reader.result;
       mapData=parseD3DBSP(buf);
       mapData._rawBuffer=buf;
+      mapData._fileName=file.name;
       uploadMesh(mapData.vbo);
       cam=[...mapData.startPos];
       yaw=mapData.startYaw||0;
